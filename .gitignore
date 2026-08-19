@@ -1,0 +1,12 @@
+# Datos personales de alumnos (RUT, correo). El roster real nunca se versiona;
+# el ejemplo con encabezados sí. Ver AGENTS.md.
+roster/*.csv
+!roster/roster_example.csv
+
+# Salidas de ejecución
+logs/
+state/
+
+__pycache__/
+*.pyc
+.DS_Store

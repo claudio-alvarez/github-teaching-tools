@@ -1,0 +1,93 @@
+# Configuración del curso. Copia este archivo a `course.toml` y ajústalo.
+#
+#   cp course.example.toml course.toml
+#
+# Todo lo específico de un curso vive acá: el código no conoce ninguna
+# organización, template ni team en particular.
+
+[course]
+# Nombre legible del curso. Aparece en el encabezado de cada corrida y en el
+# issue de bienvenida.
+name = "SIGLA-AAAASS · Nombre del Curso"
+
+# Organización de GitHub donde se crean los repositorios de grupo.
+org = "MI-ORG-DEL-CURSO"
+
+# Repositorio template a partir del cual se genera cada repo de grupo.
+# Debe estar marcado como template en GitHub (Settings → Template repository).
+template_owner = "MI-ORG-DEL-CURSO"
+template_repo = "project-base"
+
+# Team de la organización que recibe acceso a todos los repos de grupo
+# (ayudantes / equipo docente). Usa el *slug*, no el nombre visible.
+team_slug = "staff"
+
+[repos]
+# Nombre de cada repo de grupo. `{n}` es el número de grupo del roster.
+# Usa `{n:02d}` para dejar padding a dos dígitos y que el listado de la
+# organización quede ordenado.
+name_format = "grupo-{n:02d}"
+
+# Descripción del repo. Acepta {n} y {course_name}.
+description_format = "Proyecto {course_name} — Grupo {n:02d}"
+
+# Repos privados (true) o públicos (false).
+private = true
+
+[permissions]
+# Permiso de los integrantes del grupo sobre su repo.
+# pull | triage | push | maintain | admin
+members = "push"
+
+# Permiso del team docente sobre cada repo de grupo.
+# `maintain` permite commitear y administrar settings, pero no borrar el repo.
+staff = "maintain"
+
+[welcome_issue]
+# Issue que se abre en cada repo con las instrucciones de configuración.
+# Ponlo en false si no quieres que se cree.
+enabled = true
+
+title = "Configuración inicial del repositorio"
+
+# Placeholders disponibles en el cuerpo:
+#   {course_name}  {org}  {repo}  {group}
+#   {template_owner}  {template_repo}  {upstream_url}
+body = """
+Bienvenidos al repositorio de su grupo para el proyecto del curso **{course_name}**.
+
+Este repositorio fue generado a partir del template
+[`{template_owner}/{template_repo}`](https://github.com/{template_owner}/{template_repo}).
+
+## Paso obligatorio: configurar `upstream`
+
+Cada integrante, **en su clon local**, debe agregar el repositorio base como remote
+`upstream`. Esto les permite recibir las actualizaciones que el equipo docente publique
+sobre el proyecto base:
+
+```bash
+git clone git@github.com:{org}/{repo}.git
+cd {repo}
+git remote add upstream {upstream_url}
+git fetch upstream
+```
+
+Verifiquen que quedó bien configurado:
+
+```bash
+git remote -v
+# origin    git@github.com:{org}/{repo}.git (fetch)
+# origin    git@github.com:{org}/{repo}.git (push)
+# upstream  {upstream_url} (fetch)
+# upstream  {upstream_url} (push)
+```
+
+## Para incorporar cambios del proyecto base
+
+```bash
+git fetch upstream
+git merge upstream/main
+```
+
+Cierren este issue una vez que todos los integrantes hayan configurado su `upstream`.
+"""

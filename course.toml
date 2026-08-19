@@ -1,0 +1,58 @@
+[course]
+# Debe coincidir con el texto de los issues ya publicados en los repos del 19/8.
+name = "ICC4203 Aplicaciones Móviles, 2026-20"
+org = "ICC4203-202620"
+template_owner = "ICC4203-202620"
+template_repo = "project-base"
+team_slug = "staff"
+
+[repos]
+name_format = "grupo-{n:02d}"
+description_format = "Proyecto ICC4203 2026-20 — Grupo {n:02d}"
+private = true
+
+[permissions]
+members = "push"
+staff = "maintain"
+
+[welcome_issue]
+enabled = true
+title = "Configuración inicial del repositorio"
+body = """
+Bienvenidos al repositorio de su grupo para el proyecto del curso **{course_name}**.
+
+Este repositorio fue generado a partir del template
+[`{template_owner}/{template_repo}`](https://github.com/{template_owner}/{template_repo}).
+
+## Paso obligatorio: configurar `upstream`
+
+Cada integrante, **en su clon local**, debe agregar el repositorio base como remote
+`upstream`. Esto les permite recibir las actualizaciones que el equipo docente publique
+sobre el proyecto base:
+
+```bash
+git clone git@github.com:{org}/{repo}.git
+cd {repo}
+git remote add upstream {upstream_url}
+git fetch upstream
+```
+
+Verifiquen que quedó bien configurado:
+
+```bash
+git remote -v
+# origin    git@github.com:{org}/{repo}.git (fetch)
+# origin    git@github.com:{org}/{repo}.git (push)
+# upstream  {upstream_url} (fetch)
+# upstream  {upstream_url} (push)
+```
+
+## Para incorporar cambios del proyecto base
+
+```bash
+git fetch upstream
+git merge upstream/main
+```
+
+Cierren este issue una vez que todos los integrantes hayan configurado su `upstream`.
+"""
