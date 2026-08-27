@@ -1,7 +1,13 @@
 # Datos personales de alumnos (RUT, correo). El roster real nunca se versiona;
-# el ejemplo con encabezados sí. Ver AGENTS.md.
-roster/*.csv
-!roster/roster_example.csv
+# el ejemplo con encabezados sí. Ver assignment-preparation/AGENTS.md.
+**/roster/*.csv
+!**/roster/roster_example.csv
+
+# Configuración de un curso concreto (organización, template, team reales).
+# Solo se versiona la plantilla documentada.
+course.toml
+course.*.toml
+!course.example.toml
 
 # Salidas de ejecución
 logs/

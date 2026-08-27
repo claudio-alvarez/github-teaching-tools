@@ -15,12 +15,16 @@ from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent
 
-DEFAULT_COURSE_FILE = BASE_DIR / "course.toml"
-EXAMPLE_COURSE_FILE = BASE_DIR / "course.example.toml"
+# El curso y el roster viven en la raíz del repositorio porque los comparten
+# todas las herramientas; las salidas de esta corrida, en cambio, son propias.
+REPO_ROOT = BASE_DIR.parent
+
+DEFAULT_COURSE_FILE = REPO_ROOT / "course.toml"
+EXAMPLE_COURSE_FILE = REPO_ROOT / "course.example.toml"
 
 # --- Constantes de la herramienta (no dependen del curso) --------------------
 
-ROSTER_PATH = BASE_DIR / "roster" / "roster.csv"
+ROSTER_PATH = REPO_ROOT / "roster" / "roster.csv"
 STATE_PATH = BASE_DIR / "state" / "created.json"
 LOGS_DIR = BASE_DIR / "logs"
 
@@ -70,6 +74,20 @@ def _require(seccion: dict, clave: str, ruta: Path, contexto: str) -> str:
     return valor
 
 
+def display_path(path: Path) -> str:
+    """Ruta relativa al directorio actual si se puede; si no, absoluta.
+
+    El curso y el roster viven en la raíz y la herramienta se corre desde su
+    propio directorio, así que los mensajes deben mostrar `../course.toml` y no
+    un nombre suelto que el usuario no encontraría donde está parado.
+    """
+    try:
+        return str(Path(path).resolve().relative_to(Path.cwd()))
+    except ValueError:
+        import os
+        return os.path.relpath(Path(path).resolve(), Path.cwd())
+
+
 def load_course(path: Path | None = None) -> None:
     """Carga `course.toml` y publica sus valores como constantes del módulo."""
     global COURSE_FILE, COURSE_NAME, ORG, TEMPLATE_OWNER, TEMPLATE_REPO
@@ -81,7 +99,7 @@ def load_course(path: Path | None = None) -> None:
     if not path.exists():
         raise ConfigError(
             f"No existe {path}. Crea el archivo copiando la plantilla:\n"
-            f"  cp {EXAMPLE_COURSE_FILE.name} {path.name}"
+            f"  cp {display_path(EXAMPLE_COURSE_FILE)} {display_path(path)}"
         )
 
     try:
