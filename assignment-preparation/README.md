@@ -16,6 +16,10 @@ Los grupos se procesan **según la fecha de creación indicada en la planilla**,
 modo que puedes ejecutar la herramienta el día que corresponda y solo se crearán
 los repositorios de ese día.
 
+Y como las invitaciones de GitHub **caducan a los 7 días**, incluye un segundo
+comando que las reenvía a quien no alcanzó a aceptar: ver
+[Reenviar invitaciones caducadas](#reenviar-invitaciones-caducadas).
+
 No es un servicio ni un cron: lo ejecutas tú a mano cuando toca.
 
 ## Requisitos
@@ -86,6 +90,18 @@ formato esperado está en [`roster/roster_example.csv`](../roster/roster_example
 Columnas adicionales al final se ignoran, así que puedes exportar la planilla tal
 cual aunque tenga tablas auxiliares pegadas al costado.
 
+**Si tienes más de un curso activo, cada uno necesita su propio CSV**: los alumnos
+son distintos. Deja los archivos en `roster/` (por ejemplo
+`roster/roster.ICC4203-202620.csv`) y que cada `course*.toml` apunte al suyo:
+
+```toml
+[course]
+roster = "roster/roster.ICC4203-202620.csv"   # relativo a la raíz del repositorio
+```
+
+Sin esa clave se usa `roster/roster.csv`. `--roster` sigue mandando por sobre las dos
+cosas.
+
 **El roster real no se versiona** (contiene datos personales); el `.gitignore` de
 la raíz ya lo excluye, igual que `course.toml`.
 
@@ -123,8 +139,8 @@ python3 create_repos.py --group 22 --apply
 # Recuperar fechas ya pasadas que quedaron sin correr
 python3 create_repos.py --catch-up --apply
 
-# Otro curso, con su propia configuración y roster
-python3 create_repos.py --course cursos/otro.toml --roster rosters/otro.csv
+# Otro curso, con su propia configuración y su propio roster
+python3 create_repos.py --course ../course.otro.toml
 ```
 
 ### Opciones
@@ -136,7 +152,7 @@ python3 create_repos.py --course cursos/otro.toml --roster rosters/otro.csv
 | `--catch-up` | Incluye también los grupos con fecha anterior a la de corte. |
 | `--group N` | Procesa solo ese grupo, ignorando la fecha. Se puede repetir. |
 | `--course RUTA` | Archivo de configuración del curso. Por defecto `course.toml`. |
-| `--roster RUTA` | CSV del roster. Por defecto `roster/roster.csv`. |
+| `--roster RUTA` | CSV del roster. Por defecto, el que declare el curso. |
 | `--staff-permission` | Sobrescribe el permiso del team docente. |
 | `--no-welcome-issue` | No crea el issue de bienvenida. |
 | `--yes` | Omite la confirmación interactiva. Solo para uso no interactivo. |
@@ -145,12 +161,90 @@ python3 create_repos.py --course cursos/otro.toml --roster rosters/otro.csv
 Códigos de salida: `0` todo bien · `1` hubo grupos fallidos o se canceló ·
 `2` error de configuración (curso, roster, fecha, token o scopes).
 
+## Reenviar invitaciones caducadas
+
+**Las invitaciones a colaborar en un repositorio caducan a los 7 días.** GitHub las
+deja en el listado del repositorio marcadas como vencidas, así que el alumno que no
+alcanzó a aceptar queda afuera y no se arregla solo: hay que borrar la invitación
+vencida y emitir otra.
+
+`resend_invitations.py` compara el roster con el estado real de cada repositorio y
+actúa **solo sobre quien le falta invitación**:
+
+```bash
+cd assignment-preparation
+
+# Diagnóstico: quién quedó afuera y por qué. No escribe nada.
+python3 resend_invitations.py
+
+# Reenviar (pide confirmación y te muestra la cuenta exacta de correos)
+python3 resend_invitations.py --apply
+
+# Solo un par de grupos
+python3 resend_invitations.py --group 4 --group 12 --apply
+
+# El otro curso
+python3 resend_invitations.py --course ../course.ICC4203-202620.toml --apply
+```
+
+A diferencia de `create_repos.py`, este comando **no filtra por fecha**: revisa todos
+los grupos del roster, porque la caducidad no sigue el calendario de creación. Tampoco
+crea repositorios; si a un grupo le falta el suyo, lo reporta y te manda a
+`create_repos.py`.
+
+Para cada integrante decide así:
+
+| Estado en GitHub | Qué hace |
+|---|---|
+| Ya aceptó (es colaborador) | Nada. |
+| Invitación pendiente y vigente | Nada, salvo que uses `--renew-pending`. |
+| Invitación **vencida** | La borra y emite una nueva. |
+| Sin invitación ni acceso | Lo invita. |
+| Sin handle en el roster, o handle inexistente | Lo reporta para que lo resuelvas tú. |
+
+### Opciones
+
+| Flag | Efecto |
+|---|---|
+| `--apply` | Ejecuta de verdad. Sin este flag, solo diagnostica. |
+| `--group N` | Revisa solo ese grupo. Se puede repetir. Por defecto, todos. |
+| `--renew-pending` | Reemite también las invitaciones vigentes, reiniciando su plazo. |
+| `--ignore-roster-mismatch` | Continúa aunque el roster no parezca ser el de esta organización. |
+| `--course RUTA` | Archivo de configuración del curso. Por defecto `course.toml`. |
+| `--roster RUTA` | CSV del roster. Por defecto, el que declare el curso. |
+| `--yes` | Omite la confirmación interactiva. Solo para uso no interactivo. |
+| `--skip-scope-check` | No valida los scopes del token. |
+
+Códigos de salida: `0` todo bien · `1` hubo grupos fallidos o se canceló ·
+`2` error de configuración, o el roster no corresponde a la organización.
+
+### La guarda del roster equivocado
+
+Con dos cursos activos, correr el reenvío con el `course.toml` de uno y el roster del
+otro le mandaría correo a treinta alumnos que no son de ese curso. Para que eso no
+pase, el diagnóstico también mira **quién tiene acceso hoy** a cada repositorio: si en
+más de la mitad de los repos revisados ningún integrante del roster tiene acceso y sí
+lo tienen personas ajenas al roster, la corrida se detiene con código `2` antes de
+preguntarte nada.
+
+Ese mismo chequeo sirve de paso para detectar alumnos que cambiaron de grupo o que
+fueron invitados al repositorio equivocado: aparecen como
+`! con acceso de integrante pero FUERA del roster`.
+
+Las invitaciones nuevas también caducan en 7 días. Conviene avisarles a los alumnos
+en el mismo momento en que corres el comando.
+
 ## Se puede correr las veces que quieras
 
-La herramienta es **idempotente**. Si un repositorio ya existe, no lo vuelve a
-crear; si un alumno ya fue invitado o ya aceptó, no lo vuelve a invitar; si el
-team ya tiene el permiso correcto, no lo toca; si el issue de bienvenida ya está,
-no lo duplica.
+Las dos herramientas son **idempotentes**. Si un repositorio ya existe, no lo
+vuelve a crear; si un alumno ya aceptó o tiene una invitación vigente, no lo
+vuelve a invitar; si el team ya tiene el permiso correcto, no lo toca; si el issue
+de bienvenida ya está, no lo duplica.
+
+La única excepción, a propósito, son las **invitaciones vencidas**: esas sí se
+reemiten, porque dejarlas como están equivale a dejar al alumno afuera del curso.
+`create_repos.py` también las detecta y las reenvía cuando pasa por un repo que ya
+existía.
 
 Eso significa que puedes volver a correrla sin miedo: para completar un grupo que
 falló, después de corregir un handle mal escrito en la planilla, o simplemente
@@ -162,7 +256,9 @@ los completos, los que tuvieron advertencias y los fallidos.
 ## Qué queda registrado
 
 - `logs/` — un archivo por corrida, con todo lo que se hizo o se habría hecho.
+  Los del reenvío de invitaciones llevan `-invites-` en el nombre.
 - `state/created.json` — último estado conocido de cada repositorio creado.
+- `state/invitations.json` — último reenvío de invitaciones por repositorio.
 
 Ninguno de los dos se versiona.
 
@@ -182,6 +278,14 @@ para emitir la invitación.
 **Las invitaciones quedan pendientes** — es normal: GitHub las envía por correo y
 cada alumno debe aceptarlas. Hasta entonces aparecen como invitaciones, no como
 colaboradores.
+
+**«invitación VENCIDA»** — el alumno no aceptó dentro de los 7 días que da GitHub.
+Corre `python3 resend_invitations.py --apply`; ver
+[Reenviar invitaciones caducadas](#reenviar-invitaciones-caducadas).
+
+**«el roster no parece corresponder a esta organización»** — estás usando el
+`course.toml` de un curso con el roster de otro. Revisa la clave `roster` de
+`[course]` o pasa `--roster` con el CSV correcto.
 
 **Branch protection** — en organizaciones con plan gratuito, las reglas de
 protección de rama no están disponibles en repositorios privados. La herramienta

@@ -34,8 +34,12 @@ REQUIRED_COLUMNS = (
     COL_GITHUB,
     COL_GRUPO,
     COL_TAMANO,
-    COL_FECHA,
 )
+
+# `Fecha creación repositorio` es opcional: solo la usa la creación de repos por
+# fecha. Un curso cuyos repositorios ya existen no tiene por qué arrastrarla, y
+# el reenvío de invitaciones no la mira. Sin ella, `Group.fecha_creacion` es None
+# y los grupos hay que seleccionarlos con --group.
 
 
 class RosterError(Exception):
@@ -62,7 +66,7 @@ class Student:
 @dataclass
 class Group:
     numero: int
-    fecha_creacion: date
+    fecha_creacion: date | None  # None si el roster no trae la columna de fecha
     ayudante: str
     tamano_declarado: int
     members: list[Student] = field(default_factory=list)
@@ -89,7 +93,9 @@ def _clean(value: str | None) -> str:
     return (value or "").strip()
 
 
-def _parse_date(raw: str, fila: int) -> date:
+def _parse_date(raw: str, fila: int) -> date | None:
+    if not raw:
+        return None
     try:
         return datetime.strptime(raw, DATE_FORMAT).date()
     except ValueError as exc:
@@ -103,7 +109,7 @@ class _Row:
     """Una fila del CSV ya limpia: el alumno más los metadatos de su grupo."""
 
     student: Student
-    fecha: date
+    fecha: date | None
     ayudante: str
     tamano: str
 
@@ -181,14 +187,14 @@ def load_groups(path: Path | None = None) -> tuple[list[Group], list[str]]:
         entradas = por_grupo[numero]
         members = [e.student for e in entradas]
 
-        fechas = {e.fecha for e in entradas}
+        fechas = {e.fecha for e in entradas if e.fecha is not None}
         if len(fechas) > 1:
             warnings.append(
                 f"Grupo {numero}: fechas de creación distintas entre integrantes "
                 f"({', '.join(f.strftime(DATE_FORMAT) for f in sorted(fechas))}). "
                 f"Se usa la más temprana."
             )
-        fecha = min(fechas)
+        fecha = min(fechas) if fechas else None
 
         ayudantes = {e.ayudante for e in entradas if e.ayudante}
         if len(ayudantes) > 1:

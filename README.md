@@ -15,7 +15,7 @@ github-teaching-tools/
 
 | Directorio | Qué hace |
 |---|---|
-| [`assignment-preparation/`](assignment-preparation/) | Crea y configura los repositorios de los grupos a partir de un template y de la planilla del curso: invita a los integrantes, da acceso al team docente y abre el issue de bienvenida. |
+| [`assignment-preparation/`](assignment-preparation/) | Crea y configura los repositorios de los grupos a partir de un template y de la planilla del curso: invita a los integrantes, da acceso al team docente y abre el issue de bienvenida. También reenvía las invitaciones que caducaron. |
 | [`assignment-assessment/`](assignment-assessment/) | Evaluación de los trabajos entregados en esos repositorios. En etapa inicial. |
 
 Cada herramienta se ejecuta a mano, desde su propio directorio. No hay servicios ni
@@ -30,6 +30,11 @@ cp course.example.toml course.toml   # y edítalo con los datos de tu curso
 Deja tu planilla de alumnos en `roster/roster.csv`; el formato está en
 [`roster/roster_example.csv`](roster/roster_example.csv). Después, ve al README de la
 herramienta que quieras usar.
+
+**Con más de un curso activo, cada uno necesita su propio CSV**: los alumnos son
+distintos. Deja los archivos en `roster/` y apunta cada `course*.toml` al suyo con
+la clave `roster` de `[course]`. Las herramientas se niegan a invitar cuando el
+roster no corresponde a la organización del curso, pero es mejor no llegar ahí.
 
 ## Convenciones del repositorio
 

@@ -224,24 +224,71 @@ class GitHubClient:
 
     # -- colaboradores --------------------------------------------------------
 
-    def collaborator_state(self, repo: str, username: str) -> str:
-        """`collaborator`, `invited` o `none`."""
+    def is_collaborator(self, repo: str, username: str) -> bool:
+        """True solo si ya aceptó. Un invitado pendiente responde 404 acá."""
         status, _ = self._request(
             "GET",
             f"/repos/{config.ORG}/{repo}/collaborators/{urllib.parse.quote(username)}",
             soft_statuses=(404,),
         )
-        if status == 204:
-            return "collaborator"
+        return status == 204
 
+    def repo_invitations(self, repo: str) -> list[dict]:
+        """Invitaciones del repo. Incluye las vencidas, con `expired: true`."""
         _, invitaciones = self._request(
             "GET", f"/repos/{config.ORG}/{repo}/invitations?per_page=100"
         )
-        for invitacion in invitaciones or []:
+        return invitaciones or []
+
+    def find_invitation(
+        self, repo: str, username: str, invitations: list[dict] | None = None
+    ) -> dict | None:
+        """Invitación de un usuario, vigente o vencida, o None si no tiene.
+
+        `invitations` permite reutilizar un listado ya pedido y no consultar el
+        endpoint una vez por integrante.
+        """
+        if invitations is None:
+            invitations = self.repo_invitations(repo)
+        for invitacion in invitations:
             invitee = (invitacion.get("invitee") or {}).get("login", "")
             if invitee.lower() == username.lower():
-                return "invited"
-        return "none"
+                return invitacion
+        return None
+
+    def collaborator_state(self, repo: str, username: str,
+                           invitations: list[dict] | None = None) -> str:
+        """`collaborator`, `invited`, `expired` o `none`.
+
+        `expired` es distinto de `invited`: GitHub caduca las invitaciones a los
+        7 días pero las deja en el listado, así que tratarlas como pendientes
+        deja al alumno fuera para siempre.
+        """
+        if self.is_collaborator(repo, username):
+            return "collaborator"
+        invitacion = self.find_invitation(repo, username, invitations)
+        if invitacion is None:
+            return "none"
+        return "expired" if invitacion.get("expired") else "invited"
+
+    def collaborators(self, repo: str) -> list[dict]:
+        """Colaboradores que ya aceptaron, incluidos los que entran por el team."""
+        _, payload = self._request(
+            "GET", f"/repos/{config.ORG}/{repo}/collaborators?per_page=100"
+        )
+        return payload or []
+
+    def team_members(self, team: str | None = None) -> set[str]:
+        """Logins del team docente, en minúsculas. Vacío si el team no existe."""
+        team = team or config.TEAM_SLUG
+        status, payload = self._request(
+            "GET",
+            f"/orgs/{config.ORG}/teams/{team}/members?per_page=100",
+            soft_statuses=(404,),
+        )
+        if status == 404:
+            return set()
+        return {(m.get("login") or "").lower() for m in payload or []}
 
     def add_collaborator(self, repo: str, username: str, permission: str):
         self._write(
@@ -249,6 +296,43 @@ class GitHubClient:
             f"/repos/{config.ORG}/{repo}/collaborators/{urllib.parse.quote(username)}",
             {"permission": permission},
         )
+
+    def delete_invitation(self, repo: str, invitation_id: int):
+        self._write(
+            "DELETE", f"/repos/{config.ORG}/{repo}/invitations/{invitation_id}"
+        )
+
+    def ensure_collaborator(self, repo: str, username: str, permission: str,
+                            renew_pending: bool = False,
+                            invitations: list[dict] | None = None) -> str:
+        """Deja al usuario invitado o colaborador, sin duplicar nada.
+
+        Única implementación de la invitación idempotente: la usan tanto la
+        creación de repositorios como el reenvío de invitaciones. Devuelve la
+        acción decidida —en dry-run, la que se haría—:
+
+        - `ya_colaborador`   : ya aceptó, no se toca.
+        - `invitacion_vigente`: tiene invitación sin vencer y no se pidió renovar.
+        - `invitada`         : no tenía nada; se emite una invitación nueva.
+        - `reenviada`        : la invitación anterior se borra y se emite otra.
+
+        Reemitir sobre una invitación existente no reinicia su plazo, así que
+        para reenviar hay que borrarla primero.
+        """
+        if self.is_collaborator(repo, username):
+            return "ya_colaborador"
+
+        invitacion = self.find_invitation(repo, username, invitations)
+        if invitacion is None:
+            self.add_collaborator(repo, username, permission)
+            return "invitada"
+
+        if not invitacion.get("expired") and not renew_pending:
+            return "invitacion_vigente"
+
+        self.delete_invitation(repo, invitacion["id"])
+        self.add_collaborator(repo, username, permission)
+        return "reenviada"
 
     # -- teams ----------------------------------------------------------------
 

@@ -14,7 +14,6 @@ Por defecto NO escribe nada en GitHub. Ver AGENTS.md.
 from __future__ import annotations
 
 import argparse
-import json
 import sys
 import time
 from datetime import date, datetime, timezone
@@ -23,50 +22,8 @@ from pathlib import Path
 import config
 import github_api
 import roster_loader
+import runio
 from roster_loader import DATE_FORMAT, Group, RosterError
-
-
-# --- logging -----------------------------------------------------------------
-
-
-class Logger:
-    def __init__(self, log_path: Path | None):
-        self.handle = None
-        if log_path is not None:
-            log_path.parent.mkdir(parents=True, exist_ok=True)
-            self.handle = open(log_path, "a", encoding="utf-8")
-
-    def __call__(self, message: str = ""):
-        print(message)
-        if self.handle:
-            self.handle.write(message + "\n")
-            self.handle.flush()
-
-    def close(self):
-        if self.handle:
-            self.handle.close()
-
-
-# --- estado persistente ------------------------------------------------------
-
-
-def load_state(path: Path) -> dict:
-    if not path.exists():
-        return {"repos": {}}
-    try:
-        with open(path, encoding="utf-8") as handle:
-            data = json.load(handle)
-    except json.JSONDecodeError:
-        return {"repos": {}}
-    data.setdefault("repos", {})
-    return data
-
-
-def save_state(path: Path, state: dict):
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w", encoding="utf-8") as handle:
-        json.dump(state, handle, indent=2, ensure_ascii=False, sort_keys=True)
-        handle.write("\n")
 
 
 # --- selección de grupos -----------------------------------------------------
@@ -76,15 +33,39 @@ def select_groups(groups: list[Group], cutoff: date, catch_up: bool,
                   only: list[int] | None) -> list[Group]:
     if only:
         elegidos = [g for g in groups if g.numero in set(only)]
-    elif catch_up:
-        elegidos = [g for g in groups if g.fecha_creacion <= cutoff]
     else:
-        elegidos = [g for g in groups if g.fecha_creacion == cutoff]
+        # Un grupo sin fecha en el roster no se puede seleccionar por fecha;
+        # queda solo al alcance de --group.
+        con_fecha = [g for g in groups if g.fecha_creacion is not None]
+        if catch_up:
+            elegidos = [g for g in con_fecha if g.fecha_creacion <= cutoff]
+        else:
+            elegidos = [g for g in con_fecha if g.fecha_creacion == cutoff]
     # Orden ascendente de número de grupo (AGENTS.md §4).
     return sorted(elegidos, key=lambda g: g.numero)
 
 
 # --- procesamiento de un grupo ----------------------------------------------
+
+
+def describe_invitacion(accion: str, member, apply: bool) -> tuple[str, str]:
+    """Traduce la acción de `ensure_collaborator` a (estado del record, línea de log).
+
+    El tiempo verbal depende del modo: en dry-run se describe lo que se haría.
+    """
+    if accion == "ya_colaborador":
+        return "ya_colaborador", f"@{member.github} ya es colaborador"
+    if accion == "invitacion_vigente":
+        return ("invitacion_pendiente",
+                f"@{member.github} ya tiene invitación pendiente vigente")
+    if accion == "reenviada":
+        estado = "reinvitado" if apply else "se_reinvitaria"
+        verbo = "reenviar" if apply else "se reenviaría"
+        return estado, (f"{verbo} la invitación de @{member.github} "
+                        f"({member.nombre}): la anterior estaba VENCIDA")
+    estado = "invitado" if apply else "se_invitaria"
+    return estado, (f"invitar a @{member.github} ({member.nombre}) con permiso "
+                    f"{config.MEMBER_PERMISSION}")
 
 
 def process_group(client: github_api.GitHubClient, group: Group, opts, log) -> dict:
@@ -95,7 +76,9 @@ def process_group(client: github_api.GitHubClient, group: Group, opts, log) -> d
         "grupo": group.numero,
         "repo": group.repo_name,
         "url": f"https://github.com/{config.ORG}/{group.repo_name}",
-        "fecha_creacion_roster": group.fecha_creacion.isoformat(),
+        "fecha_creacion_roster": (
+            group.fecha_creacion.isoformat() if group.fecha_creacion else None
+        ),
         "ayudante": group.ayudante,
         "timestamp_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "dry_run": not client.apply,
@@ -124,6 +107,8 @@ def process_group(client: github_api.GitHubClient, group: Group, opts, log) -> d
     repo_disponible = existia or client.apply
 
     # 2. Integrantes ---------------------------------------------------------
+    invitaciones = client.repo_invitations(group.repo_name) if repo_disponible else []
+
     for member in group.members:
         entrada = {"nombre": member.nombre, "github": member.github}
 
@@ -148,22 +133,24 @@ def process_group(client: github_api.GitHubClient, group: Group, opts, log) -> d
             record["integrantes"].append(entrada)
             continue
 
-        estado = client.collaborator_state(group.repo_name, member.github) \
-            if repo_disponible else "none"
-
-        if estado == "collaborator":
-            entrada["estado"] = "ya_colaborador"
-            log(f"   integrante  : @{member.github} ya es colaborador")
-        elif estado == "invited":
-            entrada["estado"] = "invitacion_pendiente"
-            log(f"   integrante  : @{member.github} ya tiene invitación pendiente")
+        if repo_disponible:
+            accion = client.ensure_collaborator(
+                group.repo_name,
+                member.github,
+                config.MEMBER_PERMISSION,
+                invitations=invitaciones,
+            )
         else:
+            # Dry-run sobre un repo que aún no existe: nadie puede estar invitado.
             client.add_collaborator(
                 group.repo_name, member.github, config.MEMBER_PERMISSION
             )
-            entrada["estado"] = "invitado" if client.apply else "se_invitaria"
-            log(f"   integrante  : invitar a @{member.github} "
-                f"({member.nombre}) con permiso {config.MEMBER_PERMISSION}")
+            accion = "invitada"
+
+        entrada["estado"], mensaje = describe_invitacion(
+            accion, member, client.apply
+        )
+        log(f"   integrante  : {mensaje}")
 
         record["integrantes"].append(entrada)
 
@@ -241,8 +228,8 @@ def parse_args(argv: list[str] | None = None):
              f"{config.DEFAULT_COURSE_FILE.name}).",
     )
     parser.add_argument(
-        "--roster", type=Path, default=config.ROSTER_PATH,
-        help="ruta al CSV del roster.",
+        "--roster", type=Path, default=None,
+        help="ruta al CSV del roster (por defecto, el que declare el curso).",
     )
     parser.add_argument(
         "--yes", action="store_true",
@@ -279,7 +266,7 @@ def main(argv: list[str] | None = None) -> int:
 
     marca = datetime.now().strftime("%Y%m%d-%H%M%S")
     modo = "apply" if opts.apply else "dryrun"
-    log = Logger(config.LOGS_DIR / f"{marca}-{modo}.log")
+    log = runio.Logger(config.LOGS_DIR / f"{marca}-{modo}.log")
 
     try:
         return run(opts, log)
@@ -298,6 +285,8 @@ def run(opts, log) -> int:
     # Los defaults que dependen del curso se resuelven recién ahora.
     if opts.staff_permission is None:
         opts.staff_permission = config.STAFF_PERMISSION
+    if opts.roster is None:
+        opts.roster = config.ROSTER_PATH
     opts.welcome_issue = opts.welcome_issue and config.WELCOME_ISSUE_ENABLED
 
     if opts.date:
@@ -316,8 +305,8 @@ def run(opts, log) -> int:
     log(f"Template    : {config.TEMPLATE_OWNER}/{config.TEMPLATE_REPO}")
     log(f"Fecha corte : {cutoff.strftime(DATE_FORMAT)}"
         f"{' (incluye anteriores)' if opts.catch_up else ''}")
-    log(f"Curso       : {config.COURSE_FILE}")
-    log(f"Roster      : {opts.roster}")
+    log(f"Curso       : {config.display_path(config.COURSE_FILE)}")
+    log(f"Roster      : {config.display_path(opts.roster)}")
     log("=" * 72)
 
     # 1. Roster --------------------------------------------------------------
@@ -336,6 +325,11 @@ def run(opts, log) -> int:
 
     seleccionados = select_groups(groups, cutoff, opts.catch_up, opts.group)
     if not seleccionados:
+        if not opts.group and all(g.fecha_creacion is None for g in groups):
+            log(f"\nEl roster no trae la columna «{roster_loader.COL_FECHA}», así que "
+                f"no se puede seleccionar por fecha. Usa --group N, o agrega la "
+                f"columna al CSV.")
+            return 2
         log(f"\nNo hay grupos con fecha {cutoff.strftime(DATE_FORMAT)}. Nada que hacer.")
         return 0
 
@@ -345,8 +339,9 @@ def run(opts, log) -> int:
             f"@{m.github}" if m.tiene_github else f"{m.nombre} (sin GitHub)"
             for m in group.members
         )
-        log(f"  {group.numero:02d} → {group.repo_name}  "
-            f"[{group.fecha_creacion.strftime(DATE_FORMAT)}]  {integrantes}")
+        fecha = (group.fecha_creacion.strftime(DATE_FORMAT)
+                 if group.fecha_creacion else "sin fecha")
+        log(f"  {group.numero:02d} → {group.repo_name}  [{fecha}]  {integrantes}")
 
     # 2. Token y scopes ------------------------------------------------------
     try:
@@ -374,7 +369,7 @@ def run(opts, log) -> int:
         return 1
 
     # 4. Procesamiento -------------------------------------------------------
-    state = load_state(config.STATE_PATH)
+    state = runio.load_state(config.STATE_PATH)
     ok, con_errores, fallidos = [], [], []
 
     for indice, group in enumerate(seleccionados):
@@ -392,7 +387,7 @@ def run(opts, log) -> int:
                     ),
                     "errores": [str(error)],
                 }
-                save_state(config.STATE_PATH, state)
+                runio.save_state(config.STATE_PATH, state)
             continue  # un grupo caído no aborta los siguientes (AGENTS.md §4)
 
         if record["errores"]:
@@ -402,7 +397,7 @@ def run(opts, log) -> int:
 
         if opts.apply:
             state["repos"][group.repo_name] = record
-            save_state(config.STATE_PATH, state)
+            runio.save_state(config.STATE_PATH, state)
 
         if opts.apply and indice < len(seleccionados) - 1:
             time.sleep(config.SLEEP_BETWEEN_REPOS)

@@ -22,6 +22,11 @@ template_repo = "project-base"
 # (ayudantes / equipo docente). Usa el *slug*, no el nombre visible.
 team_slug = "staff"
 
+# Planilla de alumnos de ESTE curso, relativa a la raíz del repositorio.
+# Cada curso tiene sus propios alumnos: si tienes más de un curso activo, dale a
+# cada uno su CSV. Si omites la clave se usa `roster/roster.csv`.
+roster = "roster/roster.csv"
+
 [repos]
 # Nombre de cada repo de grupo. `{n}` es el número de grupo del roster.
 # Usa `{n:02d}` para dejar padding a dos dígitos y que el listado de la

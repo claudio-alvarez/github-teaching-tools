@@ -13,7 +13,13 @@ Para la guía de uso orientada al usuario, ver [README.md](README.md).
 
 Un CLI que, a partir de (a) la configuración de un curso y (b) una planilla de
 alumnos con sus grupos, crea y configura los repositorios de proyecto de cada grupo
-en una organización de GitHub.
+en una organización de GitHub, y mantiene al día las invitaciones de sus integrantes.
+
+Son dos entrypoints sobre los mismos módulos:
+
+- `create_repos.py` — crea y configura los repos de los grupos de una fecha.
+- `resend_invitations.py` — reenvía las invitaciones caducadas de los repos ya
+  creados, sin filtrar por fecha. Ver §9.
 
 Es **genérica**: no está atada a un curso, organización, template ni team en
 particular. Todo eso es configuración. El mismo código sirve para cualquier curso que
@@ -40,9 +46,13 @@ github-teaching-tools/
     ├── config.py         # carga course.toml y expone sus valores + constantes del CLI
     ├── roster_loader.py  # parseo y validación del CSV → Student / Group
     ├── github_api.py     # cliente HTTP sobre stdlib; separa lecturas de escrituras
-    ├── create_repos.py   # entrypoint CLI: orquesta y reporta
+    ├── runio.py          # salidas en disco de una corrida: Logger y estado JSON
+    ├── create_repos.py       # entrypoint: creación de repos por fecha
+    ├── resend_invitations.py # entrypoint: reenvío de invitaciones caducadas
     ├── logs/             # un .log por corrida (generado)
-    └── state/created.json  # último estado conocido por repo (generado)
+    └── state/
+        ├── created.json      # último estado por repo creado (generado)
+        └── invitations.json  # último reenvío por repo (generado)
 ```
 
 **El curso y el roster son entradas compartidas del repositorio y viven en la raíz**;
@@ -60,12 +70,18 @@ Reglas de arquitectura:
 - **Nada específico de un curso en el código.** Si aparece un nombre de organización,
   de template, de team o una convención de nombres hardcodeada en un `.py`, es un bug:
   va en `course.toml`.
+- **La invitación idempotente vive en un solo lugar:** `GitHubClient.
+  ensure_collaborator()`. Los dos entrypoints la usan. No reimplementar la
+  decisión de invitar/reenviar/omitir en un entrypoint: el bug de las
+  invitaciones vencidas apareció justamente por tener esa política suelta.
 - **`config.py` es la única puerta a la configuración.** El resto del código usa
   `config.ORG`, `config.repo_name(n)`, etc., sin saber que existe un TOML.
   `config.load_course(path)` repuebla esas constantes; por eso los defaults de
   argparse que dependen del curso se resuelven **después** de cargarlo, no al
   construir el parser.
-- **Estructura plana.** Cuatro módulos y un entrypoint. No crear paquetes ni capas.
+- **Estructura plana.** Cuatro módulos de apoyo y dos entrypoints, todos al mismo
+  nivel. No crear paquetes ni capas. Un entrypoint nuevo no importa a otro
+  entrypoint: lo que compartan va a un módulo (así nació `runio.py`).
 - **No importar código de `assignment-assessment/`** ni exponerle módulos de acá. Si
   algo se necesita en ambos, conversarlo antes: lo compartido hoy son los datos
   (`course.toml`, `roster/`), no el código.
@@ -80,6 +96,12 @@ Columnas requeridas: `#`, `Nombre`, `Usuario GitHub`, `Grupo`, `Tamaño Grupo`,
 
 Ver [`roster/roster_example.csv`](../roster/roster_example.csv) y el README para la
 descripción de cada columna.
+
+**Un roster por curso.** `[course] roster` de `course.toml` apunta al CSV de ese
+curso, relativo a `REPO_ROOT`; si falta, se usa `roster/roster.csv`. Los defaults de
+argparse que dependen de esto (`--roster`) se resuelven **después** de
+`load_course()`, igual que `--staff-permission`. Con dos cursos activos, un roster
+único invitaría a los alumnos de un curso a los repos del otro.
 
 Estos archivos vienen de exports de planilla, así que el parser debe seguir siendo
 tolerante a:
@@ -126,6 +148,12 @@ con `--catch-up`, también los anteriores; con `--group N`, esos y solo esos.
 - **Idempotencia.** Volver a correr no debe fallar ni duplicar nada. Antes de cada
   escritura se consulta el estado actual: repo existente, colaborador ya invitado o ya
   aceptado, permiso de team ya correcto, issue ya creado.
+- **Una invitación vencida no es una invitación pendiente.** GitHub caduca las
+  invitaciones a los 7 días y las **deja en el listado** de
+  `GET /repos/{org}/{repo}/invitations`, con `expired: true`. Tratarlas como
+  pendientes deja al alumno afuera para siempre, que es exactamente el bug que
+  tenía esta herramienta. Reemitir el `PUT` sobre una invitación existente no
+  reinicia su plazo: hay que borrarla (`DELETE .../invitations/{id}`) y emitir otra.
 - **Aislamiento de fallos.** Un grupo que falla no aborta los siguientes. El resumen
   final distingue completos, con advertencias y fallidos.
 - **Filtrado por fecha estricto.** Nunca crear repos de una fecha futura. La fecha de
@@ -168,6 +196,9 @@ El roster contiene identificadores nacionales y correos de estudiantes.
   quedan como herramienta opcional de coordinación y entrega.
 - No inventar handles de GitHub ni "corregirlos" por parecido de nombre. Si un handle
   no existe, reportarlo y dejar que el profesor lo resuelva.
+- No invitar a nadie sin haber comprobado que el roster corresponde a la
+  organización del curso. Cada invitación manda un correo a una persona real y no
+  se puede "desenviar".
 - No cambiar el formato de fecha del CSV a ISO ni reordenar sus columnas.
 - No convertir esto en un servicio desatendido.
 
@@ -184,3 +215,29 @@ la tabla del README.
 Antes de dar por terminado un cambio, verifica al menos: un dry-run completo, el
 camino de idempotencia (segunda corrida sobre algo ya creado) y los caminos de error
 (configuración inválida, roster ausente, fecha mal formada).
+
+## 9. El reenvío de invitaciones
+
+`resend_invitations.py` existe porque las invitaciones caducan (§4) y porque
+`create_repos.py` está atado a la fecha de creación del roster, que no dice nada
+sobre cuándo caduca una invitación.
+
+Diferencias de diseño respecto de `create_repos.py`, todas deliberadas:
+
+- **No filtra por fecha.** Revisa todos los grupos del roster, o los de `--group`.
+- **No crea nada.** Si el repo no existe, lo reporta y sigue. Crear es de la otra
+  herramienta.
+- **Diagnostica primero, escribe después.** La fase de plan es solo lecturas y corre
+  igual con `--apply`; recién después se confirma, con la **cuenta exacta** de correos
+  que se van a mandar, y se ejecuta. La ejecución vuelve a pasar por
+  `ensure_collaborator()`, así que si el alumno aceptó entre el plan y la
+  confirmación, no se lo invita de nuevo.
+- **Guarda contra el roster equivocado.** El plan también mira quién tiene acceso hoy
+  al repo, descontando al team docente y a quien tenga `admin`/`maintain`. Si en más
+  de la mitad de los repos revisados ningún integrante del roster tiene acceso y sí lo
+  tienen personas ajenas al roster, la corrida se detiene con código `2`
+  (`--ignore-roster-mismatch` para forzar). Sin esta guarda, un `--course` de un curso
+  con el roster de otro le manda correo a un curso completo equivocado.
+
+Su estado va a `state/invitations.json` y su log lleva `-invites-` en el nombre, para
+no pisar los de la creación de repos.

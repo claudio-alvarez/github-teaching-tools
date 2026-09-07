@@ -24,8 +24,10 @@ EXAMPLE_COURSE_FILE = REPO_ROOT / "course.example.toml"
 
 # --- Constantes de la herramienta (no dependen del curso) --------------------
 
-ROSTER_PATH = REPO_ROOT / "roster" / "roster.csv"
+DEFAULT_ROSTER_PATH = REPO_ROOT / "roster" / "roster.csv"
+ROSTER_DIR = REPO_ROOT / "roster"
 STATE_PATH = BASE_DIR / "state" / "created.json"
+INVITATIONS_STATE_PATH = BASE_DIR / "state" / "invitations.json"
 LOGS_DIR = BASE_DIR / "logs"
 
 API_ROOT = "https://api.github.com"
@@ -54,6 +56,8 @@ UPSTREAM_URL: str
 REPO_NAME_FORMAT: str
 REPO_DESCRIPTION_FORMAT: str
 REPO_PRIVATE: bool
+
+ROSTER_PATH: Path
 
 MEMBER_PERMISSION: str
 STAFF_PERMISSION: str
@@ -91,14 +95,16 @@ def display_path(path: Path) -> str:
 def load_course(path: Path | None = None) -> None:
     """Carga `course.toml` y publica sus valores como constantes del módulo."""
     global COURSE_FILE, COURSE_NAME, ORG, TEMPLATE_OWNER, TEMPLATE_REPO
-    global TEAM_SLUG, UPSTREAM_URL, REPO_NAME_FORMAT, REPO_DESCRIPTION_FORMAT
+    global TEAM_SLUG, UPSTREAM_URL, ROSTER_PATH
+    global REPO_NAME_FORMAT, REPO_DESCRIPTION_FORMAT
     global REPO_PRIVATE, MEMBER_PERMISSION, STAFF_PERMISSION
     global WELCOME_ISSUE_ENABLED, WELCOME_ISSUE_TITLE, WELCOME_ISSUE_BODY
 
     path = Path(path) if path else DEFAULT_COURSE_FILE
     if not path.exists():
         raise ConfigError(
-            f"No existe {path}. Crea el archivo copiando la plantilla:\n"
+            f"No existe {display_path(path)}. Crea el archivo copiando la "
+            f"plantilla:\n"
             f"  cp {display_path(EXAMPLE_COURSE_FILE)} {display_path(path)}"
         )
 
@@ -120,6 +126,17 @@ def load_course(path: Path | None = None) -> None:
     TEMPLATE_REPO = _require(curso, "template_repo", path, "course")
     TEAM_SLUG = _require(curso, "team_slug", path, "course")
     UPSTREAM_URL = f"https://github.com/{TEMPLATE_OWNER}/{TEMPLATE_REPO}.git"
+
+    # Cada curso tiene sus propios alumnos. Con dos cursos activos, un roster
+    # único es un error esperando ocurrir: apuntaría las invitaciones de un
+    # curso a los alumnos del otro. Por eso el curso puede declarar el suyo.
+    roster = curso.get("roster")
+    if roster:
+        ROSTER_PATH = Path(roster)
+        if not ROSTER_PATH.is_absolute():
+            ROSTER_PATH = (REPO_ROOT / ROSTER_PATH).resolve()
+    else:
+        ROSTER_PATH = DEFAULT_ROSTER_PATH
 
     REPO_NAME_FORMAT = repos.get("name_format") or "grupo-{n:02d}"
     REPO_DESCRIPTION_FORMAT = repos.get("description_format") or "Grupo {n:02d}"
