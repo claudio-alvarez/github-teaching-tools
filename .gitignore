@@ -13,6 +13,11 @@ course.*.toml
 logs/
 state/
 
+# Evaluación: los clones traen el código de los alumnos y las minutas de
+# revisión hablan de personas identificadas. Ninguno de los dos se versiona.
+clones/
+output/
+
 __pycache__/
 *.pyc
 .DS_Store

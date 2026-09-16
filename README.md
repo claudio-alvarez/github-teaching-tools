@@ -10,13 +10,14 @@ github-teaching-tools/
 ├── course.example.toml       # plantilla documentada
 ├── roster/roster.csv         # planilla de alumnos (no se versiona)
 ├── assignment-preparation/   # creación de los repositorios de grupo
-└── assignment-assessment/    # evaluación de los trabajos entregados
+├── assignment-assessment/    # descarga y evaluación de los trabajos entregados
+└── .claude/skills/           # skills de Claude Code propias del repositorio
 ```
 
 | Directorio | Qué hace |
 |---|---|
 | [`assignment-preparation/`](assignment-preparation/) | Crea y configura los repositorios de los grupos a partir de un template y de la planilla del curso: invita a los integrantes, da acceso al team docente y abre el issue de bienvenida. También reenvía las invitaciones que caducaron. |
-| [`assignment-assessment/`](assignment-assessment/) | Evaluación de los trabajos entregados en esos repositorios. En etapa inicial. |
+| [`assignment-assessment/`](assignment-assessment/) | Descarga los repositorios de los grupos para revisarlos localmente, con la opción de congelar la entrega en una fecha de corte. Con la skill [`preguntas-revision`](.claude/skills/preguntas-revision/), genera la minuta de preguntas de revisión de código de cada grupo, una por curso y tarea. |
 
 Cada herramienta se ejecuta a mano, desde su propio directorio. No hay servicios ni
 cron.
@@ -49,3 +50,6 @@ roster no corresponde a la organización del curso, pero es mejor no llegar ahí
   (`roster_example.csv`, `course.example.toml`). Los RUT, correos y tokens no se
   suben a ningún remoto.
 - Cada proyecto trae su propio `README.md` (uso) y `AGENTS.md` (guía para agentes).
+- **Las skills del repositorio viven en `.claude/skills/`** y cada una documenta su
+  invocación en un `README.md` propio. Las partes deterministas van en un script de
+  la skill, para poder correrlas y revisarlas a mano.

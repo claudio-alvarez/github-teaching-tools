@@ -6,8 +6,9 @@ dentro de ese directorio:
 
 - [`assignment-preparation/AGENTS.md`](assignment-preparation/AGENTS.md) — creación
   y configuración de los repositorios de grupo.
-- [`assignment-assessment/AGENTS.md`](assignment-assessment/AGENTS.md) — evaluación
-  de los trabajos entregados.
+- [`assignment-assessment/AGENTS.md`](assignment-assessment/AGENTS.md) — descarga
+  y evaluación de los trabajos entregados, y la skill que genera las preguntas de
+  revisión.
 
 ## Qué es compartido y qué no
 
@@ -25,6 +26,18 @@ acordado.
 
 Al agregar una ruta, decide si es entrada compartida (va a la raíz, resuelta contra
 `REPO_ROOT`) o salida propia (va al directorio de la herramienta, contra `BASE_DIR`).
+
+## Skills
+
+Las skills de Claude Code propias del repositorio viven en `.claude/skills/<nombre>/`
+y son parte del producto, con el mismo estándar que el código:
+
+- `SKILL.md` con el procedimiento que sigue el agente y `README.md` con la
+  documentación de invocación para el usuario.
+- Lo determinista va en un script de `scripts/`, en Python 3.11+ de biblioteca
+  estándar, ejecutable a mano para poder revisar qué está mirando el agente.
+- Una skill no importa módulos de las herramientas: se comunica con ellas por los
+  archivos que estas producen.
 
 ## Reglas de todo el repositorio
 

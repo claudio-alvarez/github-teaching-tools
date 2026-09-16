@@ -10,6 +10,11 @@
 # issue de bienvenida.
 name = "SIGLA-AAAASS · Nombre del Curso"
 
+# Nombre corto del curso. Da nombre al directorio de salida de la evaluación
+# (`output/SIGLA-AAAASS/grupo-XX/`). Si lo omites se toma la primera palabra de
+# `name`.
+slug = "SIGLA-AAAASS"
+
 # Organización de GitHub donde se crean los repositorios de grupo.
 org = "MI-ORG-DEL-CURSO"
 
@@ -96,3 +101,34 @@ git merge upstream/main
 
 Cierren este issue una vez que todos los integrantes hayan configurado su `upstream`.
 """
+
+[assessment]
+# Configuración de la evaluación de los trabajos entregados
+# (`assignment-assessment/`). Todo lo de esta sección es opcional.
+
+# Dónde quedan los clones de los repositorios de grupo. Traen el trabajo de
+# todo el curso con su historial, así que conviene un disco con espacio y fuera
+# de este repositorio. Relativo a `assignment-assessment/`; acepta `~`.
+# `--dest` manda por sobre esta clave.
+clones = "clones/SIGLA-AAAASS"
+
+# Dónde quedan las minutas de revisión que genera la skill
+# `preguntas-revision`: <output>/<slug-curso>/<tarea>/grupo-XX/QUESTIONS.md.
+# Relativo a `assignment-assessment/`.
+output = "output"
+
+# Nombre de la tarea que se está revisando. Da nombre al directorio de minutas,
+# para que las revisiones de las distintas tareas del semestre no se pisen.
+# Si lo omites se deduce del nombre de los repositorios (`repos.name_format`:
+# `tarea-1-grupo-{n:02d}` da `tarea-1`), y `--tarea` manda por sobre todo.
+# assignment = "tarea-1"
+
+# Solución canónica de la tarea: el repositorio local (no una URL) y la rama
+# donde vive la solución de referencia del equipo docente. La skill la usa para
+# formular preguntas a los grupos que no presentaron avance suficiente.
+# canonical_repo = "~/cursos/SIGLA/solucion-t1"
+# canonical_branch = "solucion"
+
+# Rama o commit con el código base dentro de ese repositorio, para diferenciar
+# la solución del enunciado entregado. Sin esta clave se usa su commit inicial.
+# canonical_base = "main"
