@@ -17,7 +17,7 @@ github-teaching-tools/
 | Directorio | Qué hace |
 |---|---|
 | [`assignment-preparation/`](assignment-preparation/) | Crea y configura los repositorios de los grupos a partir de un template y de la planilla del curso: invita a los integrantes, da acceso al team docente y abre el issue de bienvenida. También reenvía las invitaciones que caducaron. |
-| [`assignment-assessment/`](assignment-assessment/) | Descarga los repositorios de los grupos para revisarlos localmente, con la opción de congelar la entrega en una fecha de corte. Con la skill [`preguntas-revision`](.claude/skills/preguntas-revision/), genera la minuta de preguntas de revisión de código de cada grupo, una por curso y tarea. |
+| [`assignment-assessment/`](assignment-assessment/) | Descarga los repositorios de los grupos para revisarlos localmente, con la opción de congelar la entrega en una fecha de corte. Con la skill [`preguntas-revision`](.claude/skills/preguntas-revision/) genera, por grupo, tres problemas candidatos de revisión de código; con [`preparar-iet`](.claude/skills/preparar-iet/) convierte el problema que marque el docente en el enunciado y la pauta del ítem de evaluación de tarea, en markdown y PDF; con [`preparar-impresion-iet`](.claude/skills/preparar-impresion-iet/) arma el PDF único para imprimir, validado contra el roster. |
 
 Cada herramienta se ejecuta a mano, desde su propio directorio. No hay servicios ni
 cron.

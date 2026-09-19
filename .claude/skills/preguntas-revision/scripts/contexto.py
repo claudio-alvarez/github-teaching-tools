@@ -11,6 +11,7 @@ canónica.
     python3 contexto.py grupo    [--clones DIR] --group 7 [--max-lineas 400]
     python3 contexto.py canonica --repo RUTA --branch solucion [--base main]
     python3 contexto.py archivo  --group 7 --ruta src/router.py --desde 11 --hasta 19
+    python3 contexto.py schema   --slug default      # o --listar
 
 Solo biblioteca estándar y el ejecutable `git`.
 """
@@ -19,6 +20,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -28,6 +30,11 @@ MANIFEST_NAME = "clones.json"
 # El script vive en <repo>/.claude/skills/preguntas-revision/scripts/
 REPO_ROOT = Path(__file__).resolve().parents[4]
 ESTADO_CLONES = REPO_ROOT / "assignment-assessment" / "state" / "clones.json"
+
+# Los schemas de problemas (sub-partes y puntaje) viven junto a la skill. El
+# nombre del archivo, en kebab-case, es el slug con el que se pide.
+SCHEMAS_DIR = Path(__file__).resolve().parents[1] / "schemas"
+SCHEMA_DEFAULT = "default"
 
 # Archivos que no cuentan como "avance del grupo": documentación, datos,
 # dependencias y todo lo que suele venir generado o copiado.
@@ -198,6 +205,133 @@ def ruta_salida(manifiesto: dict, numero: int) -> Path:
     return base / f"grupo-{numero:02d}" / "QUESTIONS.md"
 
 
+# --- schemas -----------------------------------------------------------------
+
+
+def parse_frontmatter(texto: str) -> tuple[dict, str]:
+    """Bloque `---` inicial con líneas `clave: valor`. Devuelve (meta, cuerpo)."""
+    lineas = texto.splitlines()
+    if not lineas or lineas[0].strip() != "---":
+        return {}, texto
+    meta: dict[str, str] = {}
+    for i, linea in enumerate(lineas[1:], start=1):
+        if linea.strip() == "---":
+            return meta, "\n".join(lineas[i + 1:])
+        if ":" in linea:
+            clave, valor = linea.split(":", 1)
+            meta[clave.strip()] = valor.strip().strip("\"'")
+    return meta, texto
+
+
+def tabla_partes(cuerpo: str) -> list[dict]:
+    """Primera tabla markdown del cuerpo que tenga una columna `Puntos`.
+
+    Cada fila es una sub-parte del problema: etiqueta, puntos y tipo. El resto
+    del schema es prosa para el agente y no se interpreta.
+    """
+    lineas = cuerpo.splitlines()
+    for i, linea in enumerate(lineas):
+        if not linea.lstrip().startswith("|"):
+            continue
+        cabecera = [c.strip().lower() for c in linea.strip().strip("|").split("|")]
+        if "puntos" not in cabecera:
+            continue
+        col_puntos = cabecera.index("puntos")
+        col_parte = cabecera.index("parte") if "parte" in cabecera else 0
+        col_tipo = cabecera.index("tipo") if "tipo" in cabecera else None
+        partes = []
+        for fila in lineas[i + 2:]:  # i+1 es la línea de guiones
+            if not fila.lstrip().startswith("|"):
+                break
+            celdas = [c.strip() for c in fila.strip().strip("|").split("|")]
+            if len(celdas) <= col_puntos:
+                break
+            try:
+                puntos = int(celdas[col_puntos])
+            except ValueError as error:
+                raise ErrorContexto(
+                    f"la fila `{fila.strip()}` de la tabla de sub-partes no tiene "
+                    f"un entero en la columna Puntos."
+                ) from error
+            partes.append({
+                "parte": celdas[col_parte],
+                "puntos": puntos,
+                "tipo": celdas[col_tipo] if col_tipo is not None else "",
+            })
+        return partes
+    return []
+
+
+def schemas_disponibles() -> list[str]:
+    if not SCHEMAS_DIR.is_dir():
+        return []
+    return sorted(p.stem for p in SCHEMAS_DIR.glob("*.md"))
+
+
+def cargar_schema(slug: str) -> dict:
+    """Lee y valida `schemas/<slug>.md`; levanta ErrorContexto si no sirve."""
+    ruta = SCHEMAS_DIR / f"{slug}.md"
+    if not ruta.exists():
+        disponibles = ", ".join(schemas_disponibles()) or "(ninguno)"
+        raise ErrorContexto(
+            f"No existe el schema {slug!r} ({ruta}). Disponibles: {disponibles}."
+        )
+    texto = ruta.read_text(encoding="utf-8")
+    meta, cuerpo = parse_frontmatter(texto)
+
+    errores = []
+    if meta.get("slug") != slug:
+        errores.append(
+            f"el frontmatter dice `slug: {meta.get('slug')}` y el archivo se llama "
+            f"`{slug}.md`; tienen que coincidir (kebab-case)."
+        )
+    total: int | None
+    try:
+        total = int(meta.get("puntos", ""))
+    except ValueError:
+        total = None
+        errores.append("falta `puntos` en el frontmatter, o no es un entero.")
+    partes = tabla_partes(cuerpo)
+    if not partes:
+        errores.append("no hay una tabla de sub-partes con una columna `Puntos`.")
+    suma = sum(p["puntos"] for p in partes)
+    if total is not None and partes and suma != total:
+        errores.append(f"las sub-partes suman {suma} y `puntos` dice {total}.")
+    if errores:
+        raise ErrorContexto(f"Schema {ruta} inválido:\n  - " + "\n  - ".join(errores))
+
+    hereda = (meta.get("hereda") or "").strip() or None
+    if hereda and not (SCHEMAS_DIR / f"{hereda}.md").exists():
+        raise ErrorContexto(f"Schema {ruta}: hereda de `{hereda}`, que no existe en {SCHEMAS_DIR}.")
+    if hereda == slug:
+        raise ErrorContexto(f"Schema {ruta}: no puede heredar de sí mismo.")
+    return {
+        "slug": slug,
+        "ruta": ruta,
+        "nombre": meta.get("nombre") or slug,
+        "puntos": total,
+        "partes": partes,
+        "texto": texto,
+        "hereda": hereda,
+    }
+
+
+def reparto(schema: dict) -> str:
+    return " · ".join(f"({p['parte']}) {p['puntos']}" for p in schema["partes"])
+
+
+MARCA_PROBLEMA = re.compile(r"^\s*[-*]\s*\[[xX]\]\s*Problema\s+(\d+)", re.M)
+
+
+def problemas_marcados(ruta: Path) -> list[int]:
+    """Números de problema que el docente marcó con `[x]` en la minuta."""
+    try:
+        texto = ruta.read_text(encoding="utf-8")
+    except OSError:
+        return []
+    return [int(n) for n in MARCA_PROBLEMA.findall(texto)]
+
+
 # --- impresión ---------------------------------------------------------------
 
 
@@ -231,6 +365,142 @@ def enunciado(repo: Path) -> Path | None:
         if candidato.exists():
             return candidato
     return None
+
+
+# --- marco de función --------------------------------------------------------
+#
+# Un fragmento suelto («las líneas 346-368») se entiende mejor si se ve dentro de
+# la función que lo contiene: la firma arriba, la llave de cierre abajo y «// ...»
+# donde se omitió código. El marco se calcula con heurísticas por lenguaje; si no
+# se puede determinar, el fragmento se imprime tal cual.
+
+EXT_LLAVES = {".c", ".h", ".cc", ".cpp", ".hpp", ".java", ".js", ".ts", ".jsx",
+              ".tsx", ".go", ".rs", ".swift", ".kt", ".cs", ".m", ".S"}
+EXT_PYTHON = {".py"}
+
+
+def _col0(linea: str) -> bool:
+    return bool(linea) and not linea[0].isspace()
+
+
+def _es_firma(linea: str) -> bool:
+    """Línea en columna 0 que puede formar parte de la firma de una función."""
+    l = linea.strip()
+    return bool(l) and not l.startswith(("}", "#", "//", "/*", "*", "{"))
+
+
+def marco_llaves(lineas: list[str], desde: int, hasta: int) -> dict | None:
+    """Marco para lenguajes con llaves y funciones en columna 0 (estilo C/xv6).
+
+    Devuelve {"firma": [líneas], "apertura": n|None, "cierre": n|None,
+    "sangria": str} con números de línea 1-based, o None si el rango no está
+    dentro de una función reconocible.
+    """
+    n = len(lineas)
+    # 1. ¿El rango empieza con una firma? (contiene un «{» en columna 0 antes que un «}»)
+    apertura = None
+    for i in range(desde, hasta + 1):
+        l = lineas[i - 1]
+        if _col0(l) and l.rstrip().endswith("{"):
+            apertura = i
+            break
+        if _col0(l) and l.startswith("}"):
+            break
+    dentro = apertura is None
+    if dentro:
+        # 2. Buscar hacia arriba la llave de apertura que encierra a `desde`.
+        for i in range(desde - 1, 0, -1):
+            l = lineas[i - 1]
+            if _col0(l) and l.startswith("}"):
+                return None  # el rango está fuera de toda función
+            if _col0(l) and l.rstrip().endswith("{"):
+                apertura = i
+                break
+        if apertura is None:
+            return None
+    # 3. La firma: la línea de la llave si trae texto, más las líneas contiguas
+    #    en columna 0 que la preceden (`void` / `scheduler(void)`).
+    firma_ini = apertura
+    if lineas[apertura - 1].strip() == "{":
+        firma_ini = apertura - 1
+        if firma_ini < 1 or not _es_firma(lineas[firma_ini - 1]):
+            return None
+    while firma_ini - 1 >= 1 and _es_firma(lineas[firma_ini - 2]):
+        firma_ini -= 1
+    # 4. La llave de cierre: primer «}» en columna 0 después de `hasta`
+    #    (o dentro del rango, si ya lo incluye).
+    cierre = None
+    for i in range(max(hasta, apertura) + 1, n + 1):
+        l = lineas[i - 1]
+        if _col0(l) and l.startswith("}"):
+            cierre = i
+            break
+        if _col0(l) and l.rstrip().endswith("{"):
+            break  # empezó otra función: el rango no cerró la suya
+    incluye_cierre = any(_col0(lineas[i - 1]) and lineas[i - 1].startswith("}")
+                         for i in range(max(desde, apertura + 1), hasta + 1))
+    primera = next((lineas[i - 1] for i in range(desde, hasta + 1) if lineas[i - 1].strip()), "  x")
+    sangria = primera[:len(primera) - len(primera.lstrip())] or "  "
+    return {
+        "firma_ini": firma_ini, "apertura": apertura,
+        "cierre": None if incluye_cierre else cierre,
+        "sangria": sangria, "dentro": dentro,
+    }
+
+
+def marco_python(lineas: list[str], desde: int, hasta: int) -> dict | None:
+    """Marco para Python: el `def`/`class` de menor sangría que precede al rango."""
+    primera = next((lineas[i - 1] for i in range(desde, hasta + 1) if lineas[i - 1].strip()), None)
+    if primera is None:
+        return None
+    sangria_rango = len(primera) - len(primera.lstrip())
+    for i in range(desde - 1, 0, -1):
+        l = lineas[i - 1]
+        if not l.strip():
+            continue
+        sangria = len(l) - len(l.lstrip())
+        if sangria < sangria_rango and l.lstrip().startswith(("def ", "async def ", "class ")):
+            # decoradores contiguos encima
+            firma_ini = i
+            while firma_ini - 1 >= 1 and lineas[firma_ini - 2].strip().startswith("@"):
+                firma_ini -= 1
+            return {"firma_ini": firma_ini, "apertura": i, "cierre": None,
+                    "sangria": " " * sangria_rango, "dentro": True}
+        if sangria < sangria_rango and not l.lstrip().startswith(("#", "@", ")", "]", "}")):
+            return None  # otro bloque intermedio: no es una función simple
+    return None
+
+
+def enmarcar(ruta: str, lineas: list[str], desde: int, hasta: int) -> tuple[list[str], str]:
+    """Devuelve (líneas del fragmento enmarcado, descripción del marco)."""
+    ext = ruta[ruta.rfind("."):].lower() if "." in ruta.rsplit("/", 1)[-1] else ""
+    rango = lineas[desde - 1:hasta]
+    if ext in EXT_PYTHON:
+        marco, elipsis = marco_python(lineas, desde, hasta), "# ..."
+    elif ext in EXT_LLAVES:
+        marco, elipsis = marco_llaves(lineas, desde, hasta), "// ..."
+    else:
+        return rango, "sin marco: extensión no reconocida"
+    if marco is None:
+        return rango, "sin marco: el rango no está dentro de una función reconocible"
+
+    salida: list[str] = []
+    # Firma y apertura, solo la parte que el rango no trae ya.
+    for i in range(marco["firma_ini"], marco["apertura"] + 1):
+        if i < desde:
+            salida.append(lineas[i - 1])
+    if marco["dentro"] and marco["apertura"] + 1 < desde:
+        salida.append(marco["sangria"] + elipsis)
+    salida.extend(rango)
+    if marco["cierre"] is not None:
+        if marco["cierre"] > hasta + 1:
+            salida.append(marco["sangria"] + elipsis)
+        salida.append(lineas[marco["cierre"] - 1])
+    nombre = lineas[marco["apertura"] - 1].strip()
+    if nombre == "{":
+        nombre = lineas[marco["apertura"] - 2].strip()
+    fin = marco["cierre"] or hasta
+    return salida, f"función `{nombre}` (líneas {marco['firma_ini']}-{fin})"
 
 
 # --- subcomandos -------------------------------------------------------------
@@ -269,9 +539,18 @@ def cmd_listar(opts) -> int:
             avance = "sin clon"
         salida = ruta_salida(manifiesto, numero)
         tamano = f"{diff.get('archivos', 0)}/+{diff.get('insertadas', 0)}"
+        minuta = "—"
+        if salida.exists():
+            marcados = problemas_marcados(salida)
+            if len(marcados) == 1:
+                minuta = f"ya existe · P{marcados[0]} marcado"
+            elif marcados:
+                minuta = f"ya existe · {len(marcados)} marcados (!)"
+            else:
+                minuta = "ya existe · sin marcar"
         print(f"{numero:>3}  {str(entrada.get('estado')):<20} "
               f"{entrada.get('commits', 0):>7}  {tamano:<14} "
-              f"{avance:<12} {'ya existe' if salida.exists() else '—'}")
+              f"{avance:<12} {minuta}")
     return 0
 
 
@@ -444,9 +723,57 @@ def cmd_archivo(opts) -> int:
 
     print(f"# {etiqueta} — {origen} — líneas {desde}-{hasta} de {len(lineas)}")
     print(f"# Cita este fragmento como `{opts.ruta}:{desde}-{hasta}`")
+    if opts.marco:
+        enmarcado, descripcion = enmarcar(opts.ruta, lineas, desde, hasta)
+        print(f"# Marco: {descripcion}. Las líneas «// ...» / «# ...» no existen en el "
+              f"archivo; la referencia sigue siendo la del rango {desde}-{hasta}.")
+        print(f"# Pega lo siguiente tal cual dentro del bloque de código:")
+        for linea in enmarcado:
+            print(linea)
+        return 0
     ancho = len(str(hasta))
     for numero in range(desde, hasta + 1):
         print(f"{numero:>{ancho}} | {lineas[numero - 1]}")
+    return 0
+
+
+def cmd_schema(opts) -> int:
+    """Valida un schema y lo imprime entero, o lista los que hay."""
+    if opts.listar:
+        slugs = schemas_disponibles()
+        if not slugs:
+            print(f"No hay schemas en {SCHEMAS_DIR}.")
+            return 2
+        print(f"Schemas en {SCHEMAS_DIR}:")
+        for slug in slugs:
+            try:
+                schema = cargar_schema(slug)
+                print(f"  {slug:<24} {schema['puntos']:>3} pts  {reparto(schema)}"
+                      f"  — {schema['nombre']}")
+            except ErrorContexto as error:
+                print(f"  {slug:<24} INVÁLIDO — {str(error).splitlines()[-1].strip()}")
+        return 0
+
+    schema = cargar_schema(opts.slug)
+    print(f"# schema `{schema['slug']}` — {schema['nombre']} — "
+          f"{schema['puntos']} puntos — {schema['ruta']}")
+    print(f"# Sub-partes: {reparto(schema)}"
+          + "".join(f"\n#   ({p['parte']}) {p['puntos']} pts · {p['tipo']}"
+                    for p in schema["partes"]))
+    print("# Válido: el slug coincide con el archivo y las sub-partes suman el total.")
+    if schema.get("hereda"):
+        print(f"# Hereda de `{schema['hereda']}`: sus reglas rigen en todo lo que este "
+              f"schema no cambia. Se imprime después de este.")
+    print()
+    print(schema["texto"])
+    padre = schema.get("hereda")
+    while padre:
+        base = cargar_schema(padre)
+        print("\n" + "=" * 78)
+        print(f"# schema heredado `{base['slug']}` — {base['nombre']} — {base['ruta']}")
+        print("=" * 78 + "\n")
+        print(base["texto"])
+        padre = base.get("hereda")
     return 0
 
 
@@ -512,7 +839,20 @@ def parse_args(argv: list[str] | None = None):
                            help="ruta del archivo dentro del repositorio.")
     p_archivo.add_argument("--desde", type=int, default=None, metavar="N")
     p_archivo.add_argument("--hasta", type=int, default=None, metavar="N")
+    p_archivo.add_argument("--marco", action="store_true",
+                           help="imprime el rango dentro de su función: firma, «// ...» "
+                                "por lo omitido y llave de cierre, listo para pegar.")
     p_archivo.set_defaults(func=cmd_archivo)
+
+    p_schema = sub.add_parser(
+        "schema",
+        help="valida e imprime un schema de problemas, o lista los disponibles.")
+    p_schema.add_argument("--slug", default=SCHEMA_DEFAULT, metavar="SLUG",
+                          help=f"nombre del schema, igual al archivo "
+                               f"schemas/<slug>.md (por defecto {SCHEMA_DEFAULT!r}).")
+    p_schema.add_argument("--listar", action="store_true",
+                          help="lista los schemas disponibles y su reparto de puntos.")
+    p_schema.set_defaults(func=cmd_schema)
 
     return parser.parse_args(argv)
 

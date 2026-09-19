@@ -13,7 +13,22 @@ Dos piezas encadenadas por un archivo:
    indique el operador y escribe ahí `clones.json`, el manifiesto de la corrida.
 2. **La skill [`preguntas-revision`](../.claude/skills/preguntas-revision/)**, en la
    raíz del repositorio, lee ese manifiesto y escribe las minutas de revisión en
-   `output/<slug-curso>/<tarea>/grupo-XX/QUESTIONS.md`.
+   `output/<slug-curso>/<tarea>/grupo-XX/QUESTIONS.md`. Cada minuta trae **tres
+   problemas candidatos** de 10 puntos, con sub-partes definidas por un schema de
+   `.claude/skills/preguntas-revision/schemas/`; el docente marca uno con `[x]` y
+   ese pasa a la etapa siguiente (el enunciado para los estudiantes). Los problemas
+   son autocontenidos porque el estudiante no tendrá ni el enunciado de la tarea ni
+   su código a la vista.
+3. **La skill [`preparar-iet`](../.claude/skills/preparar-iet/)** toma el problema
+   marcado en cada `QUESTIONS.md` y escribe en el mismo directorio `STATEMENT.md`
+   (enunciado para los estudiantes), `SOLUTION.md` (pauta para los ayudantes) y sus
+   PDF, renderizados con un navegador Chromium headless desde un HTML que genera el
+   propio script. `QUESTIONS.md` es la fuente: los arreglos van ahí y se regenera.
+4. **La skill [`preparar-impresion-iet`](../.claude/skills/preparar-impresion-iet/)**
+   concatena los `STATEMENT.pdf` en un solo PDF a doble cara, en orden de grupo,
+   con una copia por integrante del roster y páginas en blanco de relleno, tras
+   validar que ningún estudiante del roster quede sin enunciado. Usa `pdfinfo`,
+   `pdfunite` o `gs` por subproceso.
 
 El manifiesto es la única interfaz entre las dos. Si le agregas un campo, hazlo
 aditivo: la skill lee lo que necesita y el archivo de una corrida anterior tiene que

@@ -36,6 +36,10 @@ y son parte del producto, con el mismo estándar que el código:
   documentación de invocación para el usuario.
 - Lo determinista va en un script de `scripts/`, en Python 3.11+ de biblioteca
   estándar, ejecutable a mano para poder revisar qué está mirando el agente.
+- Los parámetros que el usuario puede elegir por nombre (p. ej. los schemas de
+  `preguntas-revision`) van en archivos markdown dentro de la skill, uno por
+  opción, con el slug igual al nombre del archivo en kebab-case; el script los
+  valida.
 - Una skill no importa módulos de las herramientas: se comunica con ellas por los
   archivos que estas producen.
 
