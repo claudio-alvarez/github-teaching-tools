@@ -9,6 +9,9 @@ dentro de ese directorio:
 - [`assignment-assessment/AGENTS.md`](assignment-assessment/AGENTS.md) — descarga
   y evaluación de los trabajos entregados, y la skill que genera las preguntas de
   revisión.
+- [`assignment-mailings/AGENTS.md`](assignment-mailings/AGENTS.md) — correos
+  personalizados a los estudiantes con `mailmerge`; sus bases de datos con correos y
+  credenciales no se versionan.
 
 ## Qué es compartido y qué no
 

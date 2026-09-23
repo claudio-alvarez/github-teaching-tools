@@ -1,0 +1,18 @@
+TO: {{email}}
+SUBJECT: [ICC3201] Tu repositorio para la Tarea 2 — grupo {{grupo}}
+FROM: Claudio Álvarez <calvarez1@miuandes.cl>
+
+Hola {{nombre}},
+
+Ya está creado el repositorio de tu grupo ({{grupo}}) para la Tarea 2:
+
+    {{url}}
+
+Te llegó por separado una invitación de GitHub a tu usuario @{{github}}. Acéptala
+dentro de los próximos 7 días; después de ese plazo caduca y hay que pedir una nueva.
+
+En el repositorio hay un issue abierto con las instrucciones para configurar el
+remoto `upstream`, desde donde recibirán las actualizaciones del código base.
+
+Saludos,
+Claudio

@@ -21,3 +21,10 @@ output/
 __pycache__/
 *.pyc
 .DS_Store
+
+# Correos a estudiantes (assignment-mailings): las bases de datos de mailmerge
+# traen correos y, a veces, credenciales que se entregan a los alumnos. Solo se
+# versionan las plantillas y los .keep. Los envíos quedan registrados en logs/.
+assignment-mailings/data/*
+!assignment-mailings/data/.keep
+assignment-mailings/.venv/
