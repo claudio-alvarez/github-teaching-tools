@@ -427,8 +427,13 @@ def md_a_html(md: str) -> str:
     return "\n".join(out)
 
 
+# Tamaño de página para el @page del CSS. Letter es el papel estándar donde se
+# imprime hoy; A4 queda disponible con --papel a4.
+PAPELES = {"letter": "Letter", "a4": "A4"}
+PAPEL_DEFECTO = "letter"
+
 CSS = """
-@page { size: A4; margin: 18mm 18mm 20mm 18mm; }
+@page { size: @PAPEL@; margin: 18mm 18mm 20mm 18mm; }
 html { font-size: 10.5pt; }
 body { font-family: Georgia, "Times New Roman", serif; line-height: 1.38; color: #111;
        max-width: 100%; margin: 0; }
@@ -459,10 +464,11 @@ strong { font-weight: 700; }
 """
 
 
-def html_documento(md: str, titulo: str) -> str:
+def html_documento(md: str, titulo: str, papel: str = PAPEL_DEFECTO) -> str:
+    css = CSS.replace("@PAPEL@", PAPELES[papel])
     return (
         "<!DOCTYPE html>\n<html lang=\"es\">\n<head>\n<meta charset=\"utf-8\">\n"
-        f"<title>{html.escape(titulo)}</title>\n<style>{CSS}</style>\n</head>\n<body>\n"
+        f"<title>{html.escape(titulo)}</title>\n<style>{css}</style>\n</head>\n<body>\n"
         f"{md_a_html(md)}\n</body>\n</html>\n"
     )
 
@@ -538,13 +544,13 @@ def html_a_pdf(navegador: str, html_path: Path, pdf_path: Path, espera: float = 
         raise ErrorIET(f"el navegador no produjo {pdf_path.name}: {salida or 'sin salida'}")
 
 
-def render_pdf(md_path: Path, navegador: str) -> Path:
+def render_pdf(md_path: Path, navegador: str, papel: str = PAPEL_DEFECTO) -> Path:
     md = md_path.read_text(encoding="utf-8")
     titulo = next((l[2:] for l in md.splitlines() if l.startswith("# ")), md_path.stem)
     pdf_path = md_path.with_suffix(".pdf")
     with tempfile.TemporaryDirectory(prefix="iet-html-") as tmp:
         html_path = Path(tmp) / (md_path.stem + ".html")
-        html_path.write_text(html_documento(md, titulo), encoding="utf-8")
+        html_path.write_text(html_documento(md, titulo, papel), encoding="utf-8")
         html_a_pdf(navegador, html_path, pdf_path)
     return pdf_path
 
@@ -638,7 +644,7 @@ def cmd_generar(opts) -> int:
             pdfs = []
             if navegador:
                 for nombre in (STATEMENT, SOLUTION):
-                    pdfs.append(render_pdf(destino / nombre, navegador).name)
+                    pdfs.append(render_pdf(destino / nombre, navegador, opts.papel).name)
             generados.append((m.grupo, m.elegido, m.problemas[m.elegido][0], pdfs))
             print(f"grupo {m.grupo:02d}: P{m.elegido} «{m.problemas[m.elegido][0]}» → "
                   f"{STATEMENT}, {SOLUTION}" + (f", {', '.join(pdfs)}" if pdfs else ""))
@@ -668,7 +674,7 @@ def cmd_pdf(opts) -> int:
         for nombre in (STATEMENT, SOLUTION):
             md = ruta / nombre
             if md.exists():
-                pdf = render_pdf(md, navegador)
+                pdf = render_pdf(md, navegador, opts.papel)
                 print(f"{pdf}")
                 hechos += 1
     if not hechos:
@@ -706,10 +712,14 @@ def parse_args(argv: list[str] | None = None):
     p.add_argument("--rehacer", action="store_true",
                    help="sobrescribe STATEMENT.md/SOLUTION.md existentes.")
     p.add_argument("--sin-pdf", action="store_true", help="no renderiza PDF.")
+    p.add_argument("--papel", choices=sorted(PAPELES), default=PAPEL_DEFECTO,
+                   help=f"tamaño de página de los PDF (por defecto, {PAPEL_DEFECTO}).")
     p.set_defaults(func=cmd_generar)
 
     p = sub.add_parser("pdf", parents=[comunes],
                        help="re-renderiza los PDF desde los .md (tras editarlos a mano).")
+    p.add_argument("--papel", choices=sorted(PAPELES), default=PAPEL_DEFECTO,
+                   help=f"tamaño de página de los PDF (por defecto, {PAPEL_DEFECTO}).")
     p.set_defaults(func=cmd_pdf)
 
     return parser.parse_args(argv)

@@ -33,6 +33,7 @@ una, **no elijas tú**: infórmalo y sigue con las demás.
 | `--group N` | Solo ese grupo. Repetible. Sin él, todos los que tengan marca. |
 | `--rehacer` | Sobrescribe `STATEMENT.md`/`SOLUTION.md` ya existentes. Sin él se saltan. |
 | `--sin-pdf` | Solo los markdown. |
+| `--papel letter\|a4` | Tamaño de página de los PDF. Por defecto, `letter`. Vale también para `pdf`. |
 
 ## Procedimiento
 
@@ -56,7 +57,7 @@ Si **ninguno** tiene marca, detente y díselo al usuario; no hay nada que genera
 ### 2. Genera los documentos
 
 ```bash
-python3 SCRIPT generar [--group N ...] [--rehacer] [--sin-pdf]
+python3 SCRIPT generar [--group N ...] [--rehacer] [--sin-pdf] [--papel letter|a4]
 ```
 
 Por cada grupo con marca única escribe `STATEMENT.md`, `SOLUTION.md`,

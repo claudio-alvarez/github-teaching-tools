@@ -52,6 +52,7 @@ natural: «prepara el IET de la tarea 1», «genera los enunciados y las pautas�
 | `--group N` | Solo ese grupo. Repetible. |
 | `--rehacer` | Sobrescribe `STATEMENT.md`/`SOLUTION.md` ya existentes. |
 | `--sin-pdf` | Solo los markdown. |
+| `--papel letter\|a4` | Tamaño de página de los PDF. Por defecto, `letter`. Vale también para `pdf`. |
 
 ```
 /preparar-iet

@@ -134,7 +134,7 @@ def tamano_pagina(pdf: Path, tools: dict) -> tuple[float, float]:
         m = re.search(r"^Page size:\s+([\d.]+) x ([\d.]+)", salida, re.M)
         if m:
             return float(m.group(1)), float(m.group(2))
-    return 595.0, 842.0  # A4
+    return 612.0, 792.0  # Letter, el papel por defecto de preparar-iet
 
 
 def pagina_en_blanco(destino: Path, ancho: float, alto: float, tools: dict) -> Path:
