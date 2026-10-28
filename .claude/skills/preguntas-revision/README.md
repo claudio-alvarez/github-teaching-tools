@@ -170,6 +170,17 @@ de otra pieza de la Parte 1 si no, 3. El fallback a la solución canónica se de
 por sub-parte: (b) y (c) lo usan solo cuando el grupo no tiene código propio de esa
 parte, y nunca se pregunta por la Parte 2 canónica a un grupo que no la hizo.
 
+### `icc4203-entrega3-202620`
+
+Hereda de `default` para la entrega 3 del proyecto de ICC4203 (frontend en React
+con MUI y Google Maps). Son cuatro sub-partes de 5 puntos, cada una con su propio
+fragmento de `frontend/src`: (a) hooks o construcción de un componente, (b) cómo
+valida un formulario (Formik y Yup, react-hook-form o a mano), (c) una llamada a la
+API del backend y sus desenlaces, y (d) mapa, Places o geolocalización. El enunciado
+se lee de `docs/entrega3.md`. El fallback es por sub-parte, al código de ejemplo de
+las clases 09 y 10. El schema fija un presupuesto de largo (fragmentos de 4 a 25
+líneas, 90 en total) para que el enunciado impreso no pase de seis carillas.
+
 ### Crear un schema propio
 
 1. Copia `schemas/default.md` a `schemas/<mi-slug>.md`.
