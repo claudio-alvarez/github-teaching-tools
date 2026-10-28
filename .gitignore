@@ -28,3 +28,9 @@ __pycache__/
 assignment-mailings/data/*
 !assignment-mailings/data/.keep
 assignment-mailings/.venv/
+
+# Sesiones de trabajo locales (análisis ad hoc, reportes): hablan de grupos y
+# alumnos identificados. Solo se versiona el .keep. Esquema de cada directorio:
+# SIGLA-PERIODO-NN-slug_de_la_actividad, p. ej. ICC4203-202620-01-analisis_entrega3.
+sessions/*
+!sessions/.keep

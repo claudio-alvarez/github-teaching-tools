@@ -30,6 +30,16 @@ acordado.
 Al agregar una ruta, decide si es entrada compartida (va a la raíz, resuelta contra
 `REPO_ROOT`) o salida propia (va al directorio de la herramienta, contra `BASE_DIR`).
 
+## Sesiones de trabajo
+
+Los análisis ad hoc que no son parte de una herramienta (p. ej. revisar la actividad
+de los grupos en GitHub y graficarla) quedan en `sessions/`, un directorio por
+sesión con el esquema `SIGLA-PERIODO-NN-slug_de_la_actividad`, por ejemplo
+`ICC4203-202620-01-analisis_entrega3`. `NN` es el número correlativo de sesión
+dentro del curso y período. Cada sesión guarda su reporte y, si los hay, los scripts
+(`scripts/`) y datos crudos (`data/`) que lo producen. Solo se versiona
+`sessions/.keep`: el contenido habla de grupos y alumnos identificados.
+
 ## Skills
 
 Las skills de Claude Code propias del repositorio viven en `.claude/skills/<nombre>/`
