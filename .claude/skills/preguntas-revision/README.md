@@ -159,6 +159,17 @@ de la Parte 1 (`getprocs`, `ps`) siguen `default`. Razón: entender cómo actúa
 reglas del planificador discrimina mejor que cualquier detalle de implementación
 entre quien delegó la tarea completa a un LLM y quien la trabajó a conciencia.
 
+### `icc3201-tarea2-202620`
+
+Hereda de `default` para la Tarea 2 (memoria en xv6). Cada problema cita dos
+fragmentos: (a) fundamentos de administración de memoria en xv6 (espacio de
+direcciones, tabla de páginas de dos niveles, asignador de marcos, `sz` frente a
+`rss`, fallo de página), 4 puntos; (b) explicación de una pieza crítica del código
+de la Parte 1, 3; (c) explicación de una pieza de la Parte 2 si el grupo la hizo, o
+de otra pieza de la Parte 1 si no, 3. El fallback a la solución canónica se decide
+por sub-parte: (b) y (c) lo usan solo cuando el grupo no tiene código propio de esa
+parte, y nunca se pregunta por la Parte 2 canónica a un grupo que no la hizo.
+
 ### Crear un schema propio
 
 1. Copia `schemas/default.md` a `schemas/<mi-slug>.md`.
