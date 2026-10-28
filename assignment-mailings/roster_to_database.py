@@ -10,6 +10,8 @@ Opcionalmente cruza otro CSV (por ejemplo, credenciales) para agregar columnas.
     python3 roster_to_database.py --salida tarea2.csv --group 4 --group 9
     python3 roster_to_database.py --salida credenciales.csv \
         --merge data/credenciales-brutas.csv --on email
+    python3 roster_to_database.py --salida entrega3.csv \
+        --merge data/credenciales-entrega3.csv --on grupo
 
 El resultado queda en `data/`, que no se versiona. Solo biblioteca estándar.
 """
@@ -18,6 +20,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import re
 import sys
 import tomllib
 from pathlib import Path
@@ -31,7 +34,29 @@ DEFAULT_ROSTER = REPO_ROOT / "roster" / "roster.csv"
 COL_NOMBRE, COL_GITHUB, COL_EMAIL, COL_GRUPO, COL_AYUDANTE = (
     "Nombre", "Usuario GitHub", "Email", "Grupo", "Ayudante")
 
-COLUMNAS = ("email", "nombre", "github", "grupo", "repo", "url", "ayudante")
+COLUMNAS = ("email", "nombre", "nombre_pila", "github", "grupo", "repo", "url", "ayudante")
+
+# Partículas que arrastran la palabra siguiente dentro del apellido:
+# «HUIDOBRO/PEREZ DE ARCE DOMINGO» es Domingo, no De.
+PARTICULAS = {"de", "del", "la", "las", "los", "y", "san", "santa", "da", "dos",
+              "van", "von", "di", "du"}
+
+
+def nombre_de_pila(nombre: str) -> str:
+    """El primer nombre, desde el formato «APELLIDOS NOMBRES» del roster.
+
+    Los apellidos vienen unidos por una barra, así que los nombres empiezan
+    después del último token que la contiene. Es una heurística sobre un
+    formato institucional: conviene revisar la lista que imprime el helper
+    antes de enviar un correo que empieza con ella.
+    """
+    # «LETELIER /CASTRO» y «LETELIER/CASTRO» son el mismo apellido compuesto.
+    tokens = re.sub(r"\s*/\s*", "/", nombre).split()
+    corte = max((i for i, t in enumerate(tokens) if "/" in t), default=-1)
+    dados = tokens[corte + 1:] or tokens[:1]
+    while len(dados) > 1 and dados[0].lower() in PARTICULAS:
+        dados = dados[2:] or dados[1:]
+    return dados[0].capitalize() if dados else nombre
 
 
 class ErrorDatos(Exception):
@@ -74,6 +99,7 @@ def leer_roster(ruta: Path) -> list[dict]:
                 raise ErrorDatos(f"{ruta}, fila {n} ({nombre!r}): grupo inválido {grupo!r}.")
             filas.append({
                 "nombre": nombre,
+                "nombre_pila": nombre_de_pila(nombre),
                 "github": (raw.get(COL_GITHUB) or "").strip(),
                 "email": (raw.get(COL_EMAIL) or "").strip(),
                 "grupo": int(grupo),
@@ -112,7 +138,9 @@ def main(argv=None) -> int:
     parser.add_argument("--merge", type=Path, default=None, metavar="CSV",
                         help="CSV adicional cuyas columnas se agregan a cada estudiante.")
     parser.add_argument("--on", default="email", metavar="COLUMNA",
-                        help="columna del CSV adicional con la que se cruza: `email` o `github` (por defecto email).")
+                        help="columna del CSV adicional con la que se cruza: `email`, `github` o "
+                             "`grupo` (por defecto email). Con `grupo`, una misma fila del CSV "
+                             "alcanza a todos los integrantes de ese grupo.")
     parser.add_argument("--sin-email-ok", action="store_true",
                         help="no falla si un estudiante no tiene correo (la fila se omite y se avisa).")
     opts = parser.parse_args(argv)
@@ -128,13 +156,14 @@ def main(argv=None) -> int:
 
         columnas = list(COLUMNAS)
         if opts.merge:
-            if opts.on not in ("email", "github"):
-                raise ErrorDatos("--on debe ser `email` o `github`.")
+            if opts.on not in ("email", "github", "grupo"):
+                raise ErrorDatos("--on debe ser `email`, `github` o `grupo`.")
             indice, extra = leer_merge(opts.merge, opts.on)
             columnas += [c for c in extra if c not in columnas]
             sin_cruce = []
             for f in filas:
-                datos = indice.get(f[opts.on].lower())
+                # `grupo` es un entero en el roster y texto en el CSV cruzado.
+                datos = indice.get(str(f[opts.on]).lower())
                 if datos is None:
                     sin_cruce.append(f)
                 else:
@@ -143,7 +172,8 @@ def main(argv=None) -> int:
             if sin_cruce:
                 print(f"AVISO: {len(sin_cruce)} estudiante(s) sin fila en {opts.merge.name} (cruce por {opts.on}):")
                 for f in sin_cruce:
-                    print(f"  grupo {f['grupo']:>2}  {f['nombre']}  {f[opts.on] or '(sin ' + opts.on + ')'}")
+                    clave = str(f[opts.on]) or f"(sin {opts.on})"
+                    print(f"  grupo {f['grupo']:>2}  {f['nombre']}  {clave}")
 
         sin_email = [f for f in filas if not f["email"]]
         if sin_email:

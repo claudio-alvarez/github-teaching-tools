@@ -32,6 +32,26 @@ team_slug = "staff"
 # cada uno su CSV. Si omites la clave se usa `roster/roster.csv`.
 roster = "roster/roster.csv"
 
+[deploy]
+# Opcional. Solo lo necesita `assignment-mailings/generar_credenciales_bd.py`,
+# que arma las credenciales de base de datos y las variables de despliegue de
+# cada grupo. Si el curso no despliega, omite la sección entera.
+
+# Servidor de PostgreSQL donde vive la base de cada grupo.
+db_host = "dbfs-server.example.ts.net"
+db_port = 5432
+
+# Dominio bajo el cual publica cada grupo: https://grupoNN.<domain>.
+domain = "4203.example.org"
+
+# Puerto de loopback del grupo N en el servidor: port_base + N. Conviene que la
+# franja no choque con la de otro curso alojado en la misma máquina.
+port_base = 4000
+
+# Prefijo del rol y de la base de cada grupo: <user_prefix>_grupoNN. Lleva la
+# sigla del curso porque el servidor puede llegar a alojar más de uno.
+user_prefix = "icc4203"
+
 [repos]
 # Nombre de cada repo de grupo. `{n}` es el número de grupo del roster.
 # Usa `{n:02d}` para dejar padding a dos dígitos y que el listado de la

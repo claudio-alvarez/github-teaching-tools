@@ -1,0 +1,173 @@
+TO: {{email}}
+SUBJECT: [ICC4203] Entrega 3 — código base, datos de despliegue y base de datos del grupo {{group_id}}
+FROM: Claudio Álvarez <calvarez1@miuandes.cl>
+MIME-Version: 1.0
+Content-Type: text/html; charset="UTF-8"
+
+<!doctype html>
+<html lang="es">
+<head><meta charset="utf-8"></head>
+<body style="margin:0;padding:0;background:#f5f6f7;">
+<div style="max-width:640px;margin:0 auto;padding:24px 16px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#1b1f23;">
+
+  <p>Hola {{nombre_pila}},</p>
+
+  <p>
+    Ya está publicado el código base de la <strong>entrega 3</strong> y con él los
+    datos que su grupo necesita para desplegar. Este correo trae tres cosas:
+    cómo actualizar el repositorio, las credenciales de su base de datos, y qué
+    tienen que configurar ustedes.
+  </p>
+
+  <h2 style="font-size:17px;margin:28px 0 8px;padding-bottom:6px;border-bottom:2px solid #1b1f23;">
+    1. Actualicen desde <code>upstream</code>
+  </h2>
+
+  <p>
+    El repositorio de su grupo es
+    <a href="{{url}}" style="color:#0969da;">{{repo}}</a>. El código base trae las
+    diecisiete épicas del enunciado implementadas en el backend.
+  </p>
+
+  <pre style="background:#f6f8fa;border:1px solid #d0d7de;border-radius:6px;padding:12px;overflow-x:auto;font-size:13px;margin:8px 0;"><code>git checkout -b mezcla-entrega3
+git fetch upstream
+git merge upstream/main --allow-unrelated-histories</code></pre>
+
+  <p style="background:#fff8c5;border-left:4px solid #d4a72c;padding:10px 12px;margin:12px 0;">
+    <strong>La bandera no es opcional.</strong> Los repositorios se crearon desde
+    un template y no como fork, así que si su grupo nunca mezcló
+    <code>upstream</code>, Git responde
+    <code>fatal: refusing to merge unrelated histories</code> y no empieza
+    siquiera. Si ya mezclaron antes, la bandera se ignora sola. En una rama, no
+    sobre <code>main</code>.
+  </p>
+
+  <p style="background:#fff8c5;border-left:4px solid #d4a72c;padding:10px 12px;margin:12px 0;">
+    <strong>Antes de mezclar, lean la sección de migraciones del enunciado.</strong>
+    Si escribieron migraciones propias en la entrega 2, la mezcla deja dos cabezas
+    de Alembic y el backend no arranca. El enunciado explica cómo encadenarlas, y
+    hay dos cambios de contrato en la API que no aparecen como conflicto de Git.
+  </p>
+
+  <p>
+    El enunciado está en <code>docs/entrega3.md</code>. El contrato completo de la
+    API, organizado por épica, está en <code>backend/docs/api.md</code>: cada una
+    de las diecisiete dice qué endpoints la sirven y qué decisiones del backend
+    cambian lo que tienen que escribir en el cliente.
+  </p>
+
+  <h2 style="font-size:17px;margin:28px 0 8px;padding-bottom:6px;border-bottom:2px solid #1b1f23;">
+    2. Los datos de su grupo
+  </h2>
+
+  <p>
+    Su aplicación quedará publicada en
+    <a href="{{public_origin}}" style="color:#0969da;">{{public_origin}}</a>.
+  </p>
+
+  <table style="width:100%;border-collapse:collapse;margin:12px 0;font-size:14px;">
+    <tr><td style="padding:7px 10px;border:1px solid #d0d7de;background:#f6f8fa;width:38%;">Base de datos</td>
+        <td style="padding:7px 10px;border:1px solid #d0d7de;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;">{{db_name}}</td></tr>
+    <tr><td style="padding:7px 10px;border:1px solid #d0d7de;background:#f6f8fa;">Usuario</td>
+        <td style="padding:7px 10px;border:1px solid #d0d7de;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;">{{db_user}}</td></tr>
+    <tr><td style="padding:7px 10px;border:1px solid #d0d7de;background:#f6f8fa;">Contraseña</td>
+        <td style="padding:7px 10px;border:1px solid #d0d7de;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;">{{db_password}}</td></tr>
+  </table>
+
+  <p style="background:#ffebe9;border-left:4px solid #cf222e;padding:10px 12px;margin:12px 0;">
+    <strong>Esa contraseña es de su grupo y no se comparte.</strong> No la suban al
+    repositorio, ni en un <code>.env</code>, ni en un archivo de configuración, ni
+    en un comentario. Va como secreto de GitHub y no sale de ahí. Si creen que se
+    filtró, avísennos y la rotamos.
+  </p>
+
+  <h2 style="font-size:17px;margin:28px 0 8px;padding-bottom:6px;border-bottom:2px solid #1b1f23;">
+    3. Configuren el repositorio
+  </h2>
+
+  <p>
+    En <strong>Settings → Secrets and variables → Actions</strong> de
+    <a href="{{url}}" style="color:#0969da;">{{repo}}</a>. Son dos pestañas
+    distintas y cada dato va en la suya.
+  </p>
+
+  <p style="margin:16px 0 6px;"><strong>Pestaña «Variables»</strong> — no son secretas:</p>
+
+  <table style="width:100%;border-collapse:collapse;margin:6px 0;font-size:14px;">
+    <tr><td style="padding:7px 10px;border:1px solid #d0d7de;background:#f6f8fa;width:38%;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;">GROUP_ID</td>
+        <td style="padding:7px 10px;border:1px solid #d0d7de;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;">{{group_id}}</td></tr>
+    <tr><td style="padding:7px 10px;border:1px solid #d0d7de;background:#f6f8fa;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;">HOST_PORT</td>
+        <td style="padding:7px 10px;border:1px solid #d0d7de;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;">{{host_port}}</td></tr>
+    <tr><td style="padding:7px 10px;border:1px solid #d0d7de;background:#f6f8fa;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;">PUBLIC_ORIGIN</td>
+        <td style="padding:7px 10px;border:1px solid #d0d7de;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;">{{public_origin}}</td></tr>
+    <tr><td style="padding:7px 10px;border:1px solid #d0d7de;background:#f6f8fa;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;">SEED_DEMO_DATA</td>
+        <td style="padding:7px 10px;border:1px solid #d0d7de;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;">true</td></tr>
+  </table>
+
+  <p style="margin:16px 0 6px;"><strong>Pestaña «Secrets»</strong> — el primero se los damos nosotros:</p>
+
+  <p style="margin:6px 0;"><code style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;">DATABASE_URL</code></p>
+  <pre style="background:#f6f8fa;border:1px solid #d0d7de;border-radius:6px;padding:12px;overflow-x:auto;font-size:12px;margin:6px 0 14px;"><code>{{database_url}}</code></pre>
+
+  <p>Los demás los generan ustedes:</p>
+
+  <ul style="padding-left:20px;margin:6px 0;">
+    <li style="margin-bottom:6px;">
+      <code style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;">JWT_SECRET</code> —
+      una cadena aleatoria larga, propia del grupo. <strong>El backend se niega a
+      arrancar con el valor de desarrollo</strong> cuando corre en producción.
+    </li>
+    <li style="margin-bottom:6px;">
+      <code style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;">VAPID_PUBLIC_KEY</code>,
+      <code style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;">VAPID_PRIVATE_KEY</code> y
+      <code style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;">VAPID_SUBJECT</code> —
+      las mismas de la entrega 2. Sin ellas el despliegue funciona, pero nadie
+      recibe notificaciones.
+    </li>
+    <li style="margin-bottom:6px;">
+      <code style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;">VITE_GOOGLE_MAPS_API_KEY</code> —
+      restringida por referente HTTP a
+      <code style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;">{{public_origin}}</code>
+      y a <code style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;">localhost</code>.
+      Sin ella el mapa no carga.
+    </li>
+  </ul>
+
+  <p>
+    El detalle de cada variable y cada secreto, y qué hacer cuando algo falla,
+    está en <code>DEPLOY.md</code>, en la raíz del repositorio.
+  </p>
+
+  <h2 style="font-size:17px;margin:28px 0 8px;padding-bottom:6px;border-bottom:2px solid #1b1f23;">
+    4. Desplieguen
+  </h2>
+
+  <p>
+    Cada <code>push</code> a <code>main</code> dispara el despliegue. También
+    pueden lanzarlo a mano desde la pestaña <strong>Actions</strong> con
+    <strong>Run workflow</strong>, que es lo recomendable la primera vez, cuando
+    aún no han empujado nada.
+  </p>
+
+  <p>Con el despliegue en marcha, comprueben que responde:</p>
+
+  <pre style="background:#f6f8fa;border:1px solid #d0d7de;border-radius:6px;padding:12px;overflow-x:auto;font-size:13px;margin:8px 0;"><code>curl -i {{public_origin}}/healthz</code></pre>
+
+  <p>
+    Si el workflow falla en el paso «Comprobar la configuración», el mensaje
+    nombra qué variable o secreto falta.
+  </p>
+
+  <p style="margin-top:28px;">
+    Cualquier duda, escríbannos a mí o a su ayudante, {{ayudante}}.
+  </p>
+
+  <p>Saludos,<br>Claudio</p>
+
+  <p style="margin-top:28px;padding-top:12px;border-top:1px solid #d0d7de;font-size:12px;color:#57606a;">
+    Grupo {{group_id}} · {{repo}} · enviado a {{email}}
+  </p>
+
+</div>
+</body>
+</html>
